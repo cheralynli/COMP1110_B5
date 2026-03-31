@@ -1,0 +1,18 @@
+# restaurant_config.txt
+# Sample format for restaurant configuration input.
+# Use one record per line.
+#
+# Table definition:
+# TABLE,capacity,id
+# Example:
+TABLE,2,T1
+TABLE,4,T2
+TABLE,6,T3
+#
+# Queue definition:
+# QUEUE,min_size,max_size
+# Example:
+QUEUE,1,2
+QUEUE,3,4
+QUEUE,5,6
+

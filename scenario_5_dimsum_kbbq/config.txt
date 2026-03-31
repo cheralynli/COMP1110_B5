@@ -1,0 +1,14 @@
+# scenario_5_dimsum_kbbq/config.txt
+# Dim sum / KBBQ scenario template.
+# Intended characteristics:
+# - large tables with 6, 8, and 10 seats
+# - long dining times, around 90 to 120 minutes
+#
+TABLE,6,K1
+TABLE,8,K2
+TABLE,10,K3
+#
+QUEUE,4,6
+QUEUE,7,8
+QUEUE,9,10
+

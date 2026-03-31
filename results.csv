@@ -1,0 +1,6 @@
+scenario,avg_wait,max_wait,table_util,service_level_15,max_queue_length
+# Placeholder output file.
+# Each future row should contain one scenario result summary.
+# Example:
+# scenario_1_fastfood,4.2,15,0.78,0.91,6
+

@@ -1,0 +1,15 @@
+# scenario_4_sushi_belt/config.txt
+# Sushi belt scenario template.
+# Intended characteristics:
+# - bar seating plus some 2-seaters
+# - dining times around 30 to 45 minutes
+#
+TABLE,1,S1
+TABLE,1,S2
+TABLE,1,S3
+TABLE,2,S4
+TABLE,2,S5
+#
+QUEUE,1,1
+QUEUE,2,3
+

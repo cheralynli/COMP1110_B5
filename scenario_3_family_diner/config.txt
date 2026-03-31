@@ -1,0 +1,15 @@
+# scenario_3_family_diner/config.txt
+# Family diner scenario template.
+# Intended characteristics:
+# - includes 2, 4, and 6-seat tables
+# - dining times around 50 to 70 minutes
+#
+TABLE,2,D1
+TABLE,4,D2
+TABLE,4,D3
+TABLE,6,D4
+#
+QUEUE,2,3
+QUEUE,4,4
+QUEUE,5,6
+
