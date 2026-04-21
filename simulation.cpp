@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 
 namespace {
 
@@ -14,6 +15,55 @@ bool compareGroupsByArrival(const Group& left, const Group& right) {
     }
 
     return left.id < right.id;
+}
+
+bool hasOccupiedTables(const std::vector<Table>& tables) {
+    for (const Table& table : tables) {
+        if (!table.isFree) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool hasTableThatFits(const std::vector<Table>& tables, int groupSize) {
+    for (const Table& table : tables) {
+        if (table.capacity >= groupSize) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int findNextQueueDeadline(
+    const std::vector<Group>& queue,
+    const std::vector<Table>& tables,
+    int currentTime
+) {
+    int nextDeadline = std::numeric_limits<int>::max();
+
+    for (const Group& group : queue) {
+        bool canUseFreeTable = false;
+        for (const Table& table : tables) {
+            if (table.isFree && table.capacity >= group.size) {
+                canUseFreeTable = true;
+                break;
+            }
+        }
+
+        if (!canUseFreeTable) {
+            continue;
+        }
+
+        const int deadline = group.arrivalTime + group.maxWaitTolerance;
+        if (deadline > currentTime && deadline < nextDeadline) {
+            nextDeadline = deadline;
+        }
+    }
+
+    return nextDeadline;
 }
 
 } // namespace
@@ -189,8 +239,8 @@ void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
     int currentTime = 0;
     const int totalGroups = orderedArrivals.size();
 
-    while (nextArrivalIdx < totalGroups || !queue.empty()) {
-        int nextEventTime = 999999;
+    while (nextArrivalIdx < totalGroups || !queue.empty() || hasOccupiedTables(tables)) {
+        int nextEventTime = std::numeric_limits<int>::max();
 
         if (nextArrivalIdx < totalGroups) {
             nextEventTime = orderedArrivals[nextArrivalIdx].arrivalTime;
@@ -200,6 +250,28 @@ void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
             if (!table.isFree && table.availableAt < nextEventTime) {
                 nextEventTime = table.availableAt;
             }
+        }
+
+        const int nextQueueDeadline = findNextQueueDeadline(queue, tables, currentTime);
+        if (nextQueueDeadline < nextEventTime) {
+            nextEventTime = nextQueueDeadline;
+        }
+
+        if (nextEventTime == std::numeric_limits<int>::max()) {
+            bool hasUnseatableGroups = false;
+            for (const Group& group : queue) {
+                if (!hasTableThatFits(tables, group.size)) {
+                    hasUnseatableGroups = true;
+                    std::cout << "Group " << group.id
+                              << " cannot be seated because no table fits size "
+                              << group.size << ".\n";
+                }
+            }
+
+            if (!hasUnseatableGroups && !queue.empty()) {
+                std::cout << "Simulation stopped because no future event could be scheduled.\n";
+            }
+            break;
         }
 
         currentTime = nextEventTime;
