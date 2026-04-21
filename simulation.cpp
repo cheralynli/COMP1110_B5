@@ -1,198 +1,226 @@
-// simulation.cpp
-// Implementation file for the restaurant simulation logic.
-//
-// Planned responsibilities:
-// - define all methods declared in simulation.h
-// - parse restaurant configuration files
-// - parse customer arrival schedule files
-// - maintain waiting queues and seated groups over time
-// - assign arriving groups to the correct queue based on group size
-// - choose the earliest waiting group that fits an available table
-// - run the main time advancement loop for the full service period
-// - update departures and free tables when dining durations end
-// - compute metrics such as average wait, max wait, utilization, and service level
-// - optionally write CSV output for downstream Python analysis
-#include <iostream>
-#include <parser.h>
-#include <vector>
-#include <list>
-#include <map>
-#include <cmath>
+#include "simulation.h"
+
 #include <algorithm>
+#include <cmath>
+#include <fstream>
 #include <iomanip>
+#include <iostream>
 
-class WokThisWaySim {
-private:
-    std::vector<Table> tables;
-    std::vector<Group> queue;
-    
-    double fairnessWeight;    
-    int lookAheadWindow;      
-    std::map<int, double> arrivalRates;
+namespace {
 
-    int totalSeatsAvailable = 0;
-    int totalSeatMinutesUsed = 0;
-    int totalSimulationTime = 0;
+bool compareGroupsByArrival(const Group& left, const Group& right) {
+    if (left.arrivalTime != right.arrivalTime) {
+        return left.arrivalTime < right.arrivalTime;
+    }
 
-public:
-    WokThisWaySim(std::vector<Table> t, double alpha, int window) 
-        : tables(t), fairnessWeight(alpha), lookAheadWindow(window) {
-        
-        for (const auto& table : tables) {
-            totalSeatsAvailable += table.capacity;
+    return left.id < right.id;
+}
+
+} // namespace
+
+WokThisWaySim::WokThisWaySim(std::vector<Table> inputTables, double alpha, int window) {
+    tables = inputTables;
+    fairnessWeight = alpha;
+    lookAheadWindow = window;
+
+    for (const Table& table : tables) {
+        totalSeatsAvailable += table.capacity;
+    }
+}
+
+void WokThisWaySim::resetState() {
+    queue.clear();
+    totalSeatMinutesUsed = 0;
+    totalSimulationTime = 0;
+
+    for (auto& table : tables) {
+        table.isFree = true;
+        table.availableAt = 0;
+    }
+}
+
+void WokThisWaySim::initializeSeatingLog() const {
+    std::ofstream output(seatingLogPath);
+    if (!output.is_open()) {
+        return;
+    }
+
+    output << "group_id,group_size,arrival_time,seating_time,wait_time,table_id,"
+           << "table_capacity,dining_duration,departure_time\n";
+}
+
+void WokThisWaySim::appendSeatingRecord(const Group& group, const Table& table) {
+    std::ofstream output(seatingLogPath, std::ios::app);
+    if (!output.is_open()) {
+        return;
+    }
+
+    const int wait_time = group.seatingTime - group.arrivalTime;
+    const int departure_time = group.seatingTime + group.diningDuration;
+
+    output << group.id << ','
+           << group.size << ','
+           << group.arrivalTime << ','
+           << group.seatingTime << ','
+           << wait_time << ','
+           << table.id << ','
+           << table.capacity << ','
+           << group.diningDuration << ','
+           << departure_time << '\n';
+}
+
+void WokThisWaySim::precomputeHourlyRates(const std::vector<Group>& historicalData) {
+    hourlyArrivalRates.clear();
+
+    std::map<int, std::map<int, int>> hourlyCounts;
+    for (const Group& group : historicalData) {
+        const int arrival_hour = group.arrivalTime / 60;
+        hourlyCounts[arrival_hour][group.size]++;
+    }
+
+    for (const auto& hour_pair : hourlyCounts) {
+        const int hour = hour_pair.first;
+        for (const auto& size_pair : hour_pair.second) {
+            const int size = size_pair.first;
+            const int count = size_pair.second;
+            const double lambda = static_cast<double>(count) / 60.0;
+            hourlyArrivalRates[hour][size] = lambda;
         }
     }
+}
 
-    void setArrivalRates(std::map<int, double> rates) {
-        arrivalRates = rates;
+double WokThisWaySim::calculateOpportunityCost(int tableCapacity, int currentTime) {
+    if (hourlyArrivalRates.empty()) {
+        return 0.0;
     }
-    double calculateOpportunityCost(int tableCapacity) {
-        double expectedValue = 0.0;
-        for (int size = 1; size <= tableCapacity; ++size) {
-            if (arrivalRates.find(size) == arrivalRates.end()) continue; 
-            double lambda = arrivalRates[size];
-            double probArrival = 1.0 - std::exp(-lambda * lookAheadWindow);  
-            expectedValue += probArrival * (size * 45.0); 
+
+    double expectedValue = 0.0;
+    int currentHour = currentTime / 60;
+
+    if (hourlyArrivalRates.find(currentHour) == hourlyArrivalRates.end()) {
+        currentHour = hourlyArrivalRates.rbegin()->first;
+    }
+
+    const std::map<int, double>& currentRates = hourlyArrivalRates.at(currentHour);
+    for (int size = 1; size <= tableCapacity; ++size) {
+        if (currentRates.find(size) == currentRates.end()) {
+            continue;
         }
-        return expectedValue;
+
+        const double lambda = currentRates.at(size);
+        const double probArrival = 1.0 - std::exp(-lambda * lookAheadWindow);
+        expectedValue += probArrival * (size * 45.0);
     }
 
-    void processSeating(int currentTime) {
-        bool seatedSomeone = true;
+    return expectedValue;
+}
 
-        while (seatedSomeone) {
-            seatedSomeone = false;
+void WokThisWaySim::processSeating(int currentTime) {
+    bool seatedSomeone = true;
+    while (seatedSomeone) {
+        seatedSomeone = false;
 
-            for (auto& table : tables) {
-                if (!table.isFree) continue;
+        for (Table& table : tables) {
+            if (!table.isFree) {
+                continue;
+            }
 
-                int bestIdx = -1;
-                double bestUtility = -1.0;
+            int bestIdx = -1;
+            double bestUtility = -1.0;
+            const int queue_size = queue.size();
 
-                for (int i = 0; i < queue.size(); ++i) {
-                    if (queue[i].size <= table.capacity) {
-                        int currentWaitTime = currentTime - queue[i].arrivalTime;
-                        
-                        double utility = (queue[i].size * queue[i].diningDuration) + 
-                                         (currentWaitTime * fairnessWeight);
-
-                        if (utility > bestUtility) {
-                            bestUtility = utility;
-                            bestIdx = i;
-                        }
-                    }
+            for (int i = 0; i < queue_size; ++i) {
+                if (queue[i].size > table.capacity) {
+                    continue;
                 }
 
-                if (bestIdx != -1) {
-                    Group bestGroup = queue[bestIdx];
-                    int currentWaitTime = currentTime - bestGroup.arrivalTime;
-                    
-                    double expectedValueWait = calculateOpportunityCost(table.capacity);
+                const int current_wait_time = currentTime - queue[i].arrivalTime;
+                const double utility =
+                    (queue[i].size * queue[i].diningDuration) + (current_wait_time * fairnessWeight);
 
-                    if (bestUtility > expectedValueWait || currentWaitTime >= bestGroup.maxWaitTolerance) {
-                        
-                        table.isFree = false;
-                        table.availableAt = currentTime + bestGroup.diningDuration;
-                        bestGroup.seatingTime = currentTime;
-                        
-                        totalSeatMinutesUsed += (bestGroup.size * bestGroup.diningDuration);
-                        
-                        std::cout << "Time " << std::setw(3) << currentTime 
-                                  << " | Seated Group " << std::setw(2) << bestGroup.id 
-                                  << " (Size " << bestGroup.size 
-                                  << ") at Table " << table.id << " (Cap " << table.capacity 
-                                  << "). Wait time: " << currentWaitTime << " mins.\n";
-
-                        queue.erase(queue.begin() + bestIdx);
-                        seatedSomeone = true;                        
-                        break; 
-                    }
+                if (utility > bestUtility) {
+                    bestUtility = utility;
+                    bestIdx = i;
                 }
             }
 
+            if (bestIdx == -1) {
+                continue;
+            }
+
+            Group bestGroup = queue[bestIdx];
+            const int current_wait_time = currentTime - bestGroup.arrivalTime;
+            const double expected_value_wait = calculateOpportunityCost(table.capacity, currentTime);
+
+            if (bestUtility <= expected_value_wait &&
+                current_wait_time < bestGroup.maxWaitTolerance) {
+                continue;
+            }
+
+            table.isFree = false;
+            table.availableAt = currentTime + bestGroup.diningDuration;
+            bestGroup.seatingTime = currentTime;
+            totalSeatMinutesUsed += bestGroup.size * bestGroup.diningDuration;
+            appendSeatingRecord(bestGroup, table);
+
+            std::cout << "Time " << std::setw(3) << currentTime
+                      << " | Group " << std::setw(2) << bestGroup.id
+                      << " (Size " << bestGroup.size << ") @ Table " << table.id << "\n";
+
+            queue.erase(queue.begin() + bestIdx);
+            seatedSomeone = true;
+            break;
         }
     }
+}
 
-    void runSimulation(std::vector<Group> arrivals) {
-        int nextArrivalIdx = 0;
-        int currentTime = 0;
-        int totalGroups = arrivals.size();
+void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
+    resetState();
+    initializeSeatingLog();
 
-        while (nextArrivalIdx < totalGroups || !queue.empty()) {
-            
-            int nextEventTime = 999999;
-            if (nextArrivalIdx < totalGroups) {
-                nextEventTime = arrivals[nextArrivalIdx].arrivalTime;
-            }
-            for (const auto& table : tables) {
-                if (!table.isFree && table.availableAt < nextEventTime) {
-                    nextEventTime = table.availableAt;
-                }
-            }
+    std::vector<Group> orderedArrivals = arrivals;
+    std::sort(orderedArrivals.begin(), orderedArrivals.end(), compareGroupsByArrival);
 
-            currentTime = nextEventTime;
-            totalSimulationTime = currentTime;
+    int nextArrivalIdx = 0;
+    int currentTime = 0;
+    const int totalGroups = orderedArrivals.size();
 
-            for (auto& table : tables) {
-                if (!table.isFree && table.availableAt <= currentTime) {
-                    table.isFree = true;
-                }
-            }
+    while (nextArrivalIdx < totalGroups || !queue.empty()) {
+        int nextEventTime = 999999;
 
-            while (nextArrivalIdx < totalGroups && arrivals[nextArrivalIdx].arrivalTime <= currentTime) {
-                queue.push_back(arrivals[nextArrivalIdx]);
-                nextArrivalIdx++;
-            }
-
-            processSeating(currentTime);
+        if (nextArrivalIdx < totalGroups) {
+            nextEventTime = orderedArrivals[nextArrivalIdx].arrivalTime;
         }
-        
-        printMetrics();
+
+        for (const Table& table : tables) {
+            if (!table.isFree && table.availableAt < nextEventTime) {
+                nextEventTime = table.availableAt;
+            }
+        }
+
+        currentTime = nextEventTime;
+        totalSimulationTime = currentTime;
+
+        for (Table& table : tables) {
+            if (!table.isFree && table.availableAt <= currentTime) {
+                table.isFree = true;
+            }
+        }
+
+        while (nextArrivalIdx < totalGroups && orderedArrivals[nextArrivalIdx].arrivalTime <= currentTime) {
+            queue.push_back(orderedArrivals[nextArrivalIdx]);
+            nextArrivalIdx++;
+        }
+
+        processSeating(currentTime);
     }
 
-    void printMetrics() {
-        std::cout << "\n--- SIMULATION COMPLETE ---\n";
-        double maxPossibleSeatMinutes = totalSeatsAvailable * totalSimulationTime;
-        double utilization = (totalSeatMinutesUsed / maxPossibleSeatMinutes) * 100.0;
-        
-        std::cout << "Total Simulation Time: " << totalSimulationTime << " minutes\n";
-        std::cout << "Overall Seat Utilization: " << std::fixed << std::setprecision(2) << utilization << "%\n";
+    if (totalSeatsAvailable == 0 || totalSimulationTime == 0) {
+        std::cout << "\nUtilization: 0.00%\n";
+        return;
     }
-};
 
-
-int main() {
-    int table_sizes;
-    std::cin >> table_sizes; 
-    std::vector<Table> tables;
-    for(int i = 1; i <= table_sizes; ++i) {
-        int siz;
-        std::cin >> siz;
-        tables.push_back({i, siz});
-    } 
-    double alphaWeight = 1.5; 
-    int evLookAheadMinutes = 15;
-    WokThisWaySim sim(tables, alphaWeight, evLookAheadMinutes);
-
-    std::map<int, double> rates = {
-        {1, 0.10},  
-        {2, 0.20},  
-        {4, 0.05},
-        {8, 0.016} 
-    };
-    sim.setArrivalRates(rates);
-    int fixed_wait_tolerance;
-    // in case we want to fix the number of tolerance
-    std::vector<Group> arrivals = {
-        {1, 1, 0,  30, 20},
-        {2, 8, 5,  60, 40}, 
-        {3, 4, 10, 45, 30}, 
-        {4, 2, 12, 35, 20},
-        {5, 1, 15, 20, 15},
-        {6, 4, 18, 40, 25}
-    };
-
-    sim.runSimulation(arrivals);
-
-    return 0;
+    const double maxPossibleSeatMinutes = totalSeatsAvailable * totalSimulationTime;
+    const double utilization = (totalSeatMinutesUsed / maxPossibleSeatMinutes) * 100.0;
+    std::cout << "\nUtilization: " << std::fixed << std::setprecision(2) << utilization << "%\n";
 }

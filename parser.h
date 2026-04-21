@@ -14,7 +14,7 @@ struct Group {
 };
 
 struct Table {
-    int id = 0;
+    std::string id;
     int capacity = 0;
     bool isFree = true;
     int availableAt = 0;

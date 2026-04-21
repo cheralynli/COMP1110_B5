@@ -19,3 +19,39 @@
 //   calculating performance metrics
 //   exporting results for analysis
 
+#ifndef SIMULATION_H
+#define SIMULATION_H
+
+#include "parser.h"
+
+#include <map>
+#include <string>
+#include <vector>
+
+class WokThisWaySim {
+public:
+    WokThisWaySim(std::vector<Table> tables, double fairnessWeight, int lookAheadWindow);
+
+    void precomputeHourlyRates(const std::vector<Group>& historicalData);
+    void runSimulation(const std::vector<Group>& arrivals);
+
+private:
+    void appendSeatingRecord(const Group& group, const Table& table);
+    double calculateOpportunityCost(int tableCapacity, int currentTime);
+    void initializeSeatingLog() const;
+    void processSeating(int currentTime);
+    void resetState();
+
+    std::vector<Table> tables;
+    std::vector<Group> queue;
+    double fairnessWeight;
+    int lookAheadWindow;
+    std::map<int, std::map<int, double>> hourlyArrivalRates;
+    int totalSeatsAvailable = 0;
+    int totalSeatMinutesUsed = 0;
+    int totalSimulationTime = 0;
+    std::string seatingLogPath = "COMP1110_B5/seating_log.csv";
+};
+
+#endif
+

@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+namespace {
+
 std::string trimSpace(const std::string& value) {
     std::size_t start = 0;
     while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])) != 0) {
@@ -51,13 +53,15 @@ bool isIntegerString(const std::string& value) {
     return true;
 }
 
+} // namespace
+
 void InputParser::loadConfig(const std::string& configPath) {
+    tables.clear();
+
     std::ifstream input(configPath);
     if (!input.is_open()) {
         return;
     }
-
-    tables.clear();
 
     std::string rawLine;
     while (std::getline(input, rawLine)) {
@@ -66,17 +70,21 @@ void InputParser::loadConfig(const std::string& configPath) {
         }
 
         const std::vector<std::string> fields = splitCsv(rawLine);
-        if (fields.empty()) {
+        if (fields.size() < 3) {
             continue;
         }
 
         if (fields[0] == "TABLE") {
-            const int capacity = std::stoi(fields[1]);
-            if (!isIntegerString(fields[2])) {
+            if (!isIntegerString(fields[1])) {
                 continue;
             }
 
-            const int tableId = std::stoi(fields[2]);
+            const int capacity = std::stoi(fields[1]);
+            const std::string tableId = fields[2];
+            if (tableId.empty()) {
+                continue;
+            }
+
             tables.push_back(Table{tableId, capacity, true, 0});
             continue;
         }
@@ -84,12 +92,12 @@ void InputParser::loadConfig(const std::string& configPath) {
 }
 
 void InputParser::loadArrivals(const std::string& arrivalsPath) {
+    arrivals.clear();
+
     std::ifstream input(arrivalsPath);
     if (!input.is_open()) {
         return;
     }
-
-    arrivals.clear();
 
     std::string rawLine;
     int nextGroupId = 1;
@@ -100,11 +108,15 @@ void InputParser::loadArrivals(const std::string& arrivalsPath) {
         }
 
         const std::vector<std::string> fields = splitCsv(rawLine);
-        if (fields.empty()) {
+        if (fields.size() < 4) {
             continue;
         }
 
         if (fields[0] != "ARRIVAL") {
+            continue;
+        }
+
+        if (!isIntegerString(fields[1]) || !isIntegerString(fields[2]) || !isIntegerString(fields[3])) {
             continue;
         }
 
@@ -113,9 +125,9 @@ void InputParser::loadArrivals(const std::string& arrivalsPath) {
         const int dining_duration = std::stoi(fields[3]);
         int maxWaitTolerance = defaultMaxWaitTolerance;
 
-        // if (fields.size() >= 5) {
-        //     maxWaitTolerance = std::stoi(fields[4]);
-        // }
+        if (fields.size() >= 5 && isIntegerString(fields[4])) {
+            maxWaitTolerance = std::stoi(fields[4]);
+        }
 
         arrivals.push_back(
             Group{nextGroupId, group_size, arrival_time, dining_duration, maxWaitTolerance, -1}
