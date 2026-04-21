@@ -1,0 +1,8 @@
+group_id,group_size,arrival_time,seating_time,wait_time,table_id,table_capacity,dining_duration,departure_time
+2,2,10,22,12,1,2,18,40
+1,1,0,35,35,2,2,15,50
+4,2,35,35,0,3,2,20,55
+3,1,22,50,28,1,2,16,66
+5,3,52,52,0,5,4,22,74
+7,2,88,88,0,1,2,19,107
+6,1,70,88,18,2,2,15,103

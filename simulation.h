@@ -22,7 +22,7 @@
 #ifndef SIMULATION_H
 #define SIMULATION_H
 
-#include "parser.h"
+#include "restaurant_parser.h"
 
 #include <map>
 #include <string>
@@ -34,6 +34,7 @@ public:
 
     void precomputeHourlyRates(const std::vector<Group>& historicalData);
     void runSimulation(const std::vector<Group>& arrivals);
+    void setSeatingLogPath(const std::string& path);
 
 private:
     void appendSeatingRecord(const Group& group, const Table& table);
@@ -50,7 +51,7 @@ private:
     int totalSeatsAvailable = 0;
     int totalSeatMinutesUsed = 0;
     int totalSimulationTime = 0;
-    std::string seatingLogPath = "COMP1110_B5/seating_log.csv";
+    std::string seatingLogPath = "seating_log.csv";
 };
 
 #endif

@@ -10,16 +10,22 @@ This repository contains template files for a C++ restaurant seating simulation 
 
 ## How To Compile And Run
 
-Compilation will eventually follow a command similar to:
+Build the simulator with:
 
 ```bash
-g++ -std=c++17 main.cpp simulation.cpp -o restaurant_sim
+make
 ```
 
-Execution will eventually follow a command similar to:
+Run the interactive simulator with:
 
 ```bash
-./restaurant_sim
+make run
+```
+
+Clean the compiled files with:
+
+```bash
+make clean
 ```
 
 ## Input File Formats

@@ -28,6 +28,10 @@ WokThisWaySim::WokThisWaySim(std::vector<Table> inputTables, double alpha, int w
     }
 }
 
+void WokThisWaySim::setSeatingLogPath(const std::string& path) {
+    seatingLogPath = path;
+}
+
 void WokThisWaySim::resetState() {
     queue.clear();
     totalSeatMinutesUsed = 0;
