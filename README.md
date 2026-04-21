@@ -39,25 +39,33 @@ ARRIVAL,time,group_size,dining_duration
 
 ## Python Analysis
 
-- `analyze.py`: will load CSV outputs and compute summary statistics.
-- `visualize.py`: will build charts comparing restaurant scenarios.
-- `scenarios.py`: will manage batch runs and consolidated exports.
+- `metrics.py`: computes wait-time, utilization, and fairness-style summary metrics from seating records.
+- `visualize.py`: placeholder for future charting and scenario comparisons.
+- `scenarios.py`: defines the active scenario set and points to the corresponding config and arrival files.
 
-Python execution will eventually follow commands similar to:
+You can inspect the active scenario set with:
 
 ```bash
 python3 scenarios.py
-python3 analyze.py
-python3 visualize.py
 ```
 
 ## Scenario Descriptions
 
-- `scenario_1_fastfood`: mostly 2-seat tables and short dining times for small groups.
-- `scenario_2_cafe`: a mix of 2-seat and 4-seat tables with longer visits.
-- `scenario_3_family_diner`: includes 2, 4, and 6-seat tables for family groups.
-- `scenario_4_sushi_belt`: emphasizes bar seating and small fast-turnover parties.
-- `scenario_5_dimsum_kbbq`: large tables and long dining times for big groups.
+The current project is organized around 3 restaurant types, each with peak and non-peak demand cases:
+
+- `fastfood_non_peak`: lighter fast food traffic with quick turnover and mostly very small groups.
+- `fastfood_peak`: busy fast food rush with dense arrivals and short dining times.
+- `cafe_non_peak`: lighter cafe traffic, mostly solo diners and pairs.
+- `cafe_peak`: cafe rush with many tightly packed small-party arrivals.
+- `family_non_peak`: moderate family dining traffic with larger groups and longer stays.
+- `family_peak`: family dining rush with many medium and large groups.
+
+Each scenario folder contains:
+
+- `config.txt`: table capacities and queue size ranges.
+- `arrivals.txt`: arrival times, group sizes, and dining durations.
+
+Note: the current C++ parser expects numeric table IDs, so these scenario files use numeric IDs intentionally.
 
 ## Output File
 
@@ -66,4 +74,3 @@ python3 visualize.py
 ```text
 scenario,avg_wait,max_wait,table_util,service_level_15,max_queue_length
 ```
-

@@ -1,0 +1,11 @@
+# Dim sum peak-hour configuration
+# Same table mix as non-peak, but tested under heavier demand
+TABLE,4,1
+TABLE,4,2
+TABLE,6,3
+TABLE,6,4
+TABLE,8,5
+QUEUE,1,2
+QUEUE,3,4
+QUEUE,5,8
+

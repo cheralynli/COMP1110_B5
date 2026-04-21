@@ -1,0 +1,9 @@
+# KBBQ non-peak arrivals
+# Steady arrivals with long dining durations
+ARRIVAL,0,2,95
+ARRIVAL,18,4,105
+ARRIVAL,40,5,110
+ARRIVAL,68,3,92
+ARRIVAL,90,6,118
+ARRIVAL,124,4,100
+

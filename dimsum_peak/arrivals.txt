@@ -1,0 +1,15 @@
+# Dim sum peak-hour arrivals
+# Weekend-style rush with many medium and large parties
+ARRIVAL,0,4,85
+ARRIVAL,4,2,75
+ARRIVAL,7,6,100
+ARRIVAL,10,3,82
+ARRIVAL,14,5,95
+ARRIVAL,18,4,88
+ARRIVAL,22,2,80
+ARRIVAL,25,8,105
+ARRIVAL,29,6,98
+ARRIVAL,35,3,84
+ARRIVAL,40,4,90
+ARRIVAL,46,5,96
+

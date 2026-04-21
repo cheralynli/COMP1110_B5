@@ -1,0 +1,10 @@
+# Family dining non-peak arrivals
+# Moderate family traffic with more spacing between parties
+ARRIVAL,0,2,52
+ARRIVAL,18,4,58
+ARRIVAL,36,3,55
+ARRIVAL,60,5,65
+ARRIVAL,84,2,50
+ARRIVAL,110,6,70
+ARRIVAL,138,4,60
+

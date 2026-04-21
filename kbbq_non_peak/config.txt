@@ -1,0 +1,12 @@
+# KBBQ non-peak configuration
+# Grill tables sized for medium and large parties
+# Typical dining time: 90 to 120 minutes
+TABLE,4,1
+TABLE,4,2
+TABLE,6,3
+TABLE,6,4
+TABLE,8,5
+QUEUE,2,4
+QUEUE,5,6
+QUEUE,7,8
+

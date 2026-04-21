@@ -1,0 +1,10 @@
+# Fast food non-peak arrivals
+# Light traffic with mostly solo diners and pairs
+ARRIVAL,0,1,15
+ARRIVAL,10,2,18
+ARRIVAL,22,1,16
+ARRIVAL,35,2,20
+ARRIVAL,52,3,22
+ARRIVAL,70,1,15
+ARRIVAL,88,2,19
+

@@ -1,0 +1,15 @@
+# Cafe peak-hour arrivals
+# Dense rush of solo diners, couples, and small groups
+ARRIVAL,0,1,50
+ARRIVAL,3,2,60
+ARRIVAL,5,1,45
+ARRIVAL,8,2,55
+ARRIVAL,12,4,70
+ARRIVAL,15,2,60
+ARRIVAL,18,1,48
+ARRIVAL,21,3,65
+ARRIVAL,24,2,58
+ARRIVAL,28,4,75
+ARRIVAL,31,1,50
+ARRIVAL,35,2,62
+

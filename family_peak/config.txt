@@ -1,0 +1,11 @@
+# Family dining peak-hour configuration
+# Same layout as non-peak with heavier dinner demand
+TABLE,2,1
+TABLE,4,2
+TABLE,4,3
+TABLE,6,4
+TABLE,6,5
+QUEUE,1,2
+QUEUE,3,4
+QUEUE,5,6
+
