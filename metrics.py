@@ -1,4 +1,7 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
+import csv
+import glob
+import os
 
 
 def avg_wait_time(seating_records: List[Dict[str, Any]]) -> float:
@@ -114,5 +117,66 @@ def fairness_gap_in_average_waiting_time(seating_records: List[Dict[str, Any]]) 
     return max_avg - min_avg
 
 
+def read_seating_csv(file_path: str) -> List[Dict[str, Any]]:
+    records: List[Dict[str, Any]] = []
+
+    with open(file_path, "r", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            cleaned: Dict[str, Any] = {}
+            for key, value in row.items():
+                cleaned[key] = value if value != "" else None
+            records.append(cleaned)
+
+    return records
+
+
+def find_seating_csv_files(search_dir: str) -> List[str]:
+    pattern = os.path.join(search_dir, "seating*.csv")
+    return sorted(glob.glob(pattern))
+
+
+def compute_metrics(seating_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "avg_wait": avg_wait_time(seating_records),
+        "max_wait": max_wait_time(seating_records),
+        "groups_served": groups_served(seating_records),
+        "seat_util": seat_utilization(seating_records),
+        "fairness_gap": fairness_gap_in_average_waiting_time(seating_records),
+    }
+
+
+def write_summary_csv(output_path: str, rows: Iterable[Dict[str, Any]]) -> None:
+    fieldnames = [
+        "source_file",
+        "avg_wait",
+        "max_wait",
+        "groups_served",
+        "seat_util",
+        "fairness_gap",
+    ]
+
+    with open(output_path, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
 def main():
-    return 
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    seating_files = find_seating_csv_files(base_dir)
+
+    summary_rows: List[Dict[str, Any]] = []
+    for file_path in seating_files:
+        records = read_seating_csv(file_path)
+        metrics = compute_metrics(records)
+        metrics["source_file"] = os.path.basename(file_path)
+        summary_rows.append(metrics)
+
+    output_path = os.path.join(base_dir, "metrics_summary.csv")
+    write_summary_csv(output_path, summary_rows)
+
+
+if __name__ == "__main__":
+    main()
