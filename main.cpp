@@ -1,14 +1,19 @@
 #include "restaurant_parser.h"
 #include "simulation.h"
 
+#include <algorithm>
 #include <cctype>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
 #include <string>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/ioctl.h>
 #include <unistd.h>
+#endif
 #include <vector>
 
 namespace {
@@ -91,10 +96,21 @@ struct TerminalSize {
 };
 
 TerminalSize getTerminalSize() {
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &consoleInfo)) {
+        const int cols = consoleInfo.srWindow.Right - consoleInfo.srWindow.Left + 1;
+        const int rows = consoleInfo.srWindow.Bottom - consoleInfo.srWindow.Top + 1;
+        if (rows > 0 && cols > 0) {
+            return {rows, cols};
+        }
+    }
+#else
     winsize ws {};
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_col > 0) {
         return {static_cast<int>(ws.ws_row), static_cast<int>(ws.ws_col)};
     }
+#endif
 
     return {24, 100};
 }
