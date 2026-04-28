@@ -165,7 +165,9 @@ def write_summary_csv(output_path: str, rows: Iterable[Dict[str, Any]]) -> None:
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    seating_files = find_seating_csv_files(base_dir)
+    output_dir = os.path.join(base_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    seating_files = find_seating_csv_files(output_dir)
 
     summary_rows: List[Dict[str, Any]] = []
     for file_path in seating_files:
@@ -174,7 +176,7 @@ def main():
         metrics["source_file"] = os.path.basename(file_path)
         summary_rows.append(metrics)
 
-    output_path = os.path.join(base_dir, "metrics_summary.csv")
+    output_path = os.path.join(output_dir, "metrics_summary.csv")
     write_summary_csv(output_path, summary_rows)
 
 

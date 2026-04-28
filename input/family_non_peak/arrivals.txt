@@ -1,0 +1,15 @@
+# Family dining full-day non-peak arrivals
+# Lighter lunch service and a more meaningful dinner period
+ARRIVAL,90,2,58
+ARRIVAL,128,4,70
+ARRIVAL,166,3,64
+ARRIVAL,212,5,82
+ARRIVAL,320,2,56
+ARRIVAL,368,4,72
+ARRIVAL,500,3,66
+ARRIVAL,534,6,92
+ARRIVAL,568,4,74
+ARRIVAL,606,2,60
+ARRIVAL,648,5,84
+ARRIVAL,690,4,76
+

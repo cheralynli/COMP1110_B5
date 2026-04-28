@@ -1,0 +1,9 @@
+source_file,avg_wait,max_wait,groups_served,seat_util,fairness_gap
+fcfs_seating_log_cafe_non_peak.csv,0.0,0.0,18,0.8260536398467433,0.0
+fcfs_seating_log_cafe_peak.csv,0.0,0.0,28,0.809463986599665,0.0
+fcfs_seating_log_custom_run.csv,0.0,0.0,7,0.7687074829931972,0.0
+fcfs_seating_log_family_non_peak.csv,0.0,0.0,12,0.9174107142857143,0.0
+fcfs_seating_log_family_peak.csv,0.0,0.0,18,0.9255591054313099,0.0
+fcfs_seating_log_fastfood_non_peak.csv,0.0,0.0,56,0.7985436893203883,0.0
+fcfs_seating_log_fastfood_peak.csv,0.0,0.0,80,0.8249329758713136,0.0
+fcfs_seating_log_fastfood_stress.csv,7.681818181818182,37.0,22,0.8034825870646766,27.458333333333332

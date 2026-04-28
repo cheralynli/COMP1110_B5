@@ -1,0 +1,12 @@
+# Fast food full-day peak configuration
+# Same small dine-in branch as non-peak, but on a busier day
+TABLE,2,1
+TABLE,2,2
+TABLE,2,3
+TABLE,2,4
+TABLE,4,5
+TABLE,4,6
+TABLE,4,7
+QUEUE,1,2
+QUEUE,3,4
+

@@ -1,0 +1,17 @@
+# Family dining stress-test arrivals
+# Long-stay family groups arriving faster than large tables free up
+ARRIVAL,0,4,60
+ARRIVAL,3,2,54
+ARRIVAL,7,6,74
+ARRIVAL,11,3,58
+ARRIVAL,16,5,68
+ARRIVAL,20,4,62
+ARRIVAL,25,8,82
+ARRIVAL,30,2,52
+ARRIVAL,34,6,76
+ARRIVAL,39,3,56
+ARRIVAL,44,5,70
+ARRIVAL,50,4,64
+ARRIVAL,57,7,80
+ARRIVAL,63,2,55
+ARRIVAL,70,6,78

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -45,50 +46,58 @@ const std::vector<ScenarioOption> kScenarios = {
         "fastfood",
         "non_peak",
         "Fast food with light traffic and quick turnover",
-        "fastfood_non_peak/config.txt",
-        "fastfood_non_peak/arrivals.txt",
+        "input/fastfood_non_peak/config.txt",
+        "input/fastfood_non_peak/arrivals.txt",
     },
     {
         "fastfood_peak",
         "fastfood",
         "peak",
         "Fast food rush with dense small-party arrivals",
-        "fastfood_peak/config.txt",
-        "fastfood_peak/arrivals.txt",
+        "input/fastfood_peak/config.txt",
+        "input/fastfood_peak/arrivals.txt",
     },
     {
         "cafe_non_peak",
         "cafe",
         "non_peak",
         "Cafe with lighter traffic and moderate dining durations",
-        "cafe_non_peak/config.txt",
-        "cafe_non_peak/arrivals.txt",
+        "input/cafe_non_peak/config.txt",
+        "input/cafe_non_peak/arrivals.txt",
     },
     {
         "cafe_peak",
         "cafe",
         "peak",
         "Cafe rush with more queue pressure",
-        "cafe_peak/config.txt",
-        "cafe_peak/arrivals.txt",
+        "input/cafe_peak/config.txt",
+        "input/cafe_peak/arrivals.txt",
     },
     {
         "family_non_peak",
         "family",
         "non_peak",
         "Family dining with moderate traffic and larger groups",
-        "family_non_peak/config.txt",
-        "family_non_peak/arrivals.txt",
+        "input/family_non_peak/config.txt",
+        "input/family_non_peak/arrivals.txt",
     },
     {
         "family_peak",
         "family",
         "peak",
         "Family dining rush with many medium and large groups",
-        "family_peak/config.txt",
-        "family_peak/arrivals.txt",
+        "input/family_peak/config.txt",
+        "input/family_peak/arrivals.txt",
     },
 };
+
+int customScenarioChoice() {
+    return static_cast<int>(kRestaurants.size()) + 1;
+}
+
+int runAllScenariosChoice() {
+    return static_cast<int>(kRestaurants.size()) + 2;
+}
 
 struct TerminalSize {
     int rows;
@@ -286,14 +295,15 @@ int promptForRestaurantChoice() {
                       << std::left << std::setw(14) << kRestaurants[i].label
                       << " - " << kRestaurants[i].description << '\n';
         }
-        std::cout << "  " << (kRestaurants.size() + 1) << ". Custom file paths\n";
+        std::cout << "  " << customScenarioChoice() << ". Custom file paths\n";
+        std::cout << "  " << runAllScenariosChoice() << ". Run all built-in scenarios\n";
         std::cout << "  0. Exit\n";
         std::cout << "\nChoose a restaurant: ";
 
         int choice = -1;
         if (std::cin >> choice) {
             clearInputState();
-            if (choice >= 0 && choice <= static_cast<int>(kRestaurants.size() + 1)) {
+            if (choice >= 0 && choice <= runAllScenariosChoice()) {
                 return choice;
             }
         } else {
@@ -390,10 +400,56 @@ const ScenarioOption* findScenario(const std::string& restaurantType, const std:
 }
 
 std::string buildLogPath(const std::string& scenarioName) {
-    return "seating_log_" + scenarioName + ".csv";
+    return "output/seating_log_" + scenarioName + ".csv";
 }
 
+bool runScenarioWithSettings(
+    const ScenarioOption& scenario,
+    double fairnessWeight,
+    int lookAheadWindow,
+    bool clearBeforeRun,
+    bool pauseAfterRun
+);
+
 bool runScenario(const ScenarioOption& scenario) {
+    const double fairnessWeight = promptForDouble("Fairness weight", 1.0);
+    const int lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+
+    return runScenarioWithSettings(scenario, fairnessWeight, lookAheadWindow, true, true);
+}
+
+void runAllScenarios() {
+    const double fairnessWeight = promptForDouble("Fairness weight", 1.0);
+    const int lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+
+    clearScreen();
+    std::cout << "\nRunning all built-in heuristic scenarios\n";
+    std::cout << "Fairness weight: " << fairnessWeight << '\n';
+    std::cout << "Look-ahead window: " << lookAheadWindow << " minutes\n\n";
+
+    int successCount = 0;
+    for (const ScenarioOption& scenario : kScenarios) {
+        if (runScenarioWithSettings(scenario, fairnessWeight, lookAheadWindow, false, false)) {
+            successCount++;
+        }
+        std::cout << '\n';
+    }
+
+    std::cout << "Completed " << successCount << " of "
+              << static_cast<int>(kScenarios.size()) << " built-in scenarios.\n";
+    std::cout << "Press Enter to return to the main menu.";
+
+    std::string line;
+    std::getline(std::cin, line);
+}
+
+bool runScenarioWithSettings(
+    const ScenarioOption& scenario,
+    double fairnessWeight,
+    int lookAheadWindow,
+    bool clearBeforeRun,
+    bool pauseAfterRun
+) {
     InputParser parser;
     parser.loadConfig(scenario.configPath);
     parser.loadArrivals(scenario.arrivalsPath);
@@ -411,15 +467,16 @@ bool runScenario(const ScenarioOption& scenario) {
         return false;
     }
 
-    const double fairnessWeight = promptForDouble("Fairness weight", 1.0);
-    const int lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
-
     WokThisWaySim simulation(tables, fairnessWeight, lookAheadWindow);
     const std::string logPath = buildLogPath(scenario.name);
+    std::filesystem::create_directories("output");
     simulation.setSeatingLogPath(logPath);
     simulation.precomputeHourlyRates(arrivals);
 
-    clearScreen();
+    if (clearBeforeRun) {
+        clearScreen();
+    }
+
     std::cout << "\nRunning " << scenario.name << '\n';
     std::cout << "Config:   " << scenario.configPath << '\n';
     std::cout << "Arrivals: " << scenario.arrivalsPath << '\n';
@@ -428,10 +485,12 @@ bool runScenario(const ScenarioOption& scenario) {
     simulation.runSimulation(arrivals);
 
     std::cout << "\nSimulation complete. Seating log saved to " << logPath << ".\n";
-    std::cout << "Press Enter to return to the main menu.";
+    if (pauseAfterRun) {
+        std::cout << "Press Enter to return to the main menu.";
 
-    std::string line;
-    std::getline(std::cin, line);
+        std::string line;
+        std::getline(std::cin, line);
+    }
     return true;
 }
 
@@ -452,8 +511,11 @@ int main() {
         }
 
         ScenarioOption selectedScenario;
-        if (restaurantChoice == static_cast<int>(kRestaurants.size() + 1)) {
+        if (restaurantChoice == customScenarioChoice()) {
             selectedScenario = promptForCustomScenario();
+        } else if (restaurantChoice == runAllScenariosChoice()) {
+            runAllScenarios();
+            continue;
         } else {
             const RestaurantOption& restaurant = kRestaurants[restaurantChoice - 1];
             const int demandChoice = promptForDemandChoice(restaurant);

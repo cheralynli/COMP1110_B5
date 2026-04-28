@@ -36,12 +36,13 @@ def _bar_chart(labels: List[str], values: List[float], title: str, y_label: str,
 
 def main():
 	base_dir = os.path.dirname(os.path.abspath(__file__))
-	metrics_path = os.path.join(base_dir, "metrics_summary.csv")
+	output_root = os.path.join(base_dir, "output")
+	metrics_path = os.path.join(output_root, "metrics_summary.csv")
 
 	rows = _read_metrics_summary(metrics_path)
 	labels = [row["source_file"].replace("seating_log_", "").replace(".csv", "") for row in rows]
 
-	output_dir = os.path.join(base_dir, "charts")
+	output_dir = os.path.join(output_root, "charts")
 	os.makedirs(output_dir, exist_ok=True)
 
 	_bar_chart(

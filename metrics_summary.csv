@@ -1,7 +1,0 @@
-source_file,avg_wait,max_wait,groups_served,seat_util,fairness_gap
-seating_log_cafe_non_peak.csv,5.25,30.0,8,0.7621664050235479,14.0
-seating_log_cafe_peak.csv,41.5,103.0,12,0.8174186778593914,92.5
-seating_log_family_non_peak.csv,0.0,0.0,7,0.9296600234466589,0.0
-seating_log_family_peak.csv,52.7,110.0,10,0.9117435158501441,88.5
-seating_log_fastfood_non_peak.csv,19.857142857142858,35.0,7,0.7687074829931972,14.333333333333334
-seating_log_fastfood_peak.csv,38.583333333333336,61.0,12,0.8125,31.0
