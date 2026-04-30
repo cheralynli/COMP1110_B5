@@ -2,11 +2,11 @@
 # Same independent cafe layout as non-peak, on a busier trading day
 TABLE,2,1
 TABLE,2,2
-TABLE,4,3
+TABLE,2,3
 TABLE,4,4
 TABLE,4,5
-TABLE,6,6
+TABLE,4,6
+TABLE,6,7
 QUEUE,1,2
 QUEUE,3,4
-QUEUE,5,6
-
+QUEUE,5,8

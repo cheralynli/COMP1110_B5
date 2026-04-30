@@ -5,6 +5,12 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 
 
+def _parse_float(value: str) -> float:
+	if value is None or value == "":
+		return 0.0
+	return float(value)
+
+
 def _read_metrics_summary(file_path: str) -> List[Dict[str, float]]:
 	rows: List[Dict[str, float]] = []
 
@@ -13,11 +19,16 @@ def _read_metrics_summary(file_path: str) -> List[Dict[str, float]]:
 		for row in reader:
 			rows.append({
 				"source_file": row["source_file"],
-				"avg_wait": float(row["avg_wait"]),
-				"max_wait": float(row["max_wait"]),
-				"groups_served": float(row["groups_served"]),
-				"seat_util": float(row["seat_util"]),
-				"fairness_gap": float(row["fairness_gap"]),
+				"avg_wait": _parse_float(row.get("avg_wait", "")),
+				"max_wait": _parse_float(row.get("max_wait", "")),
+				"median_wait": _parse_float(row.get("median_wait", "")),
+				"groups_served": _parse_float(row.get("groups_served", "")),
+				"seat_util": _parse_float(row.get("seat_util", "")),
+				"true_seat_util": _parse_float(row.get("true_seat_util", "")),
+				"service_level_15": _parse_float(row.get("service_level_15", "")),
+				"max_queue_length": _parse_float(row.get("max_queue_length", "")),
+				"avg_queue_length": _parse_float(row.get("avg_queue_length", "")),
+				"fairness_gap": _parse_float(row.get("fairness_gap", "")),
 			})
 
 	return rows
@@ -29,6 +40,24 @@ def _bar_chart(labels: List[str], values: List[float], title: str, y_label: str,
 	plt.title(title)
 	plt.ylabel(y_label)
 	plt.xticks(rotation=30, ha="right")
+	plt.tight_layout()
+	plt.savefig(output_path)
+	plt.close()
+
+
+def _comparison_chart(labels: List[str], series_a: List[float], series_b: List[float],
+					title: str, y_label: str, output_path: str,
+					label_a: str, label_b: str) -> None:
+	bar_width = 0.4
+	indices = list(range(len(labels)))
+
+	plt.figure(figsize=(12, 5))
+	plt.bar([i - bar_width / 2 for i in indices], series_a, width=bar_width, label=label_a)
+	plt.bar([i + bar_width / 2 for i in indices], series_b, width=bar_width, label=label_b)
+	plt.title(title)
+	plt.ylabel(y_label)
+	plt.xticks(indices, labels, rotation=30, ha="right")
+	plt.legend()
 	plt.tight_layout()
 	plt.savefig(output_path)
 	plt.close()
@@ -59,10 +88,45 @@ def visualize_fcfs_metrics():
     )
 	_bar_chart(
 		labels,
+		[row["median_wait"] for row in rows],
+		"FCFS Median Wait Time",
+		"Minutes",
+		os.path.join(output_dir, "median_wait.png"),
+	)
+	_bar_chart(
+		labels,
 		[row["seat_util"] for row in rows],
 		"FCFS Seat Utilization",
 		"Utilization (0-1)",
 		os.path.join(output_dir, "seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["true_seat_util"] for row in rows],
+		"FCFS True Seat Utilization",
+		"Utilization (0-1)",
+		os.path.join(output_dir, "true_seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["service_level_15"] for row in rows],
+		"FCFS Service Level (<= 15 min)",
+		"Share (0-1)",
+		os.path.join(output_dir, "service_level_15.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["max_queue_length"] for row in rows],
+		"FCFS Max Queue Length",
+		"Groups",
+		os.path.join(output_dir, "max_queue_length.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["avg_queue_length"] for row in rows],
+		"FCFS Average Queue Length",
+		"Groups",
+		os.path.join(output_dir, "avg_queue_length.png"),
 	)
 	_bar_chart(
 		labels,
@@ -106,10 +170,45 @@ def visualize_ourAlgo_metrics():
 	)
 	_bar_chart(
 		labels,
+		[row["median_wait"] for row in rows],
+		"Median Wait Time",
+		"Minutes",
+		os.path.join(output_dir, "median_wait.png"),
+	)
+	_bar_chart(
+		labels,
 		[row["seat_util"] for row in rows],
 		"Seat Utilization",
 		"Utilization (0-1)",
 		os.path.join(output_dir, "seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["true_seat_util"] for row in rows],
+		"True Seat Utilization",
+		"Utilization (0-1)",
+		os.path.join(output_dir, "true_seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["service_level_15"] for row in rows],
+		"Service Level (<= 15 min)",
+		"Share (0-1)",
+		os.path.join(output_dir, "service_level_15.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["max_queue_length"] for row in rows],
+		"Max Queue Length",
+		"Groups",
+		os.path.join(output_dir, "max_queue_length.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["avg_queue_length"] for row in rows],
+		"Average Queue Length",
+		"Groups",
+		os.path.join(output_dir, "avg_queue_length.png"),
 	)
 	_bar_chart(
 		labels,
@@ -126,9 +225,63 @@ def visualize_ourAlgo_metrics():
 		os.path.join(output_dir, "groups_served.png"),
 	)
 
+
+def _scenario_key(source_file: str, prefix: str) -> str:
+	return source_file.replace(prefix, "").replace(".csv", "")
+
+
+def visualize_comparison_metrics():
+	base_dir = os.path.dirname(os.path.abspath(__file__))
+	output_root = os.path.join(base_dir, "output")
+	fcfs_path = os.path.join(output_root, "fcfs_metrics_summary.csv")
+	ours_path = os.path.join(output_root, "metrics_summary.csv")
+
+	fcfs_rows = _read_metrics_summary(fcfs_path)
+	ours_rows = _read_metrics_summary(ours_path)
+
+	fcfs_by_key = {
+		_scenario_key(row["source_file"], "fcfs_seating_log_"): row for row in fcfs_rows
+	}
+	ours_by_key = {
+		_scenario_key(row["source_file"], "seating_log_"): row for row in ours_rows
+	}
+
+	labels = sorted(set(fcfs_by_key) & set(ours_by_key))
+	output_dir = os.path.join(output_root, "combined_charts")
+	os.makedirs(output_dir, exist_ok=True)
+
+	metrics = [
+		("avg_wait", "Average Wait Time", "Minutes"),
+		("max_wait", "Maximum Wait Time", "Minutes"),
+		("median_wait", "Median Wait Time", "Minutes"),
+		("seat_util", "Seat Utilization", "Utilization (0-1)"),
+		("true_seat_util", "True Seat Utilization", "Utilization (0-1)"),
+		("service_level_15", "Service Level (<= 15 min)", "Share (0-1)"),
+		("max_queue_length", "Max Queue Length", "Groups"),
+		("avg_queue_length", "Average Queue Length", "Groups"),
+		("fairness_gap", "Fairness Gap in Average Waiting Time", "Minutes"),
+		("groups_served", "Groups Served", "Count"),
+	]
+
+	for key, title, y_label in metrics:
+		series_fcfs = [fcfs_by_key[label][key] for label in labels]
+		series_ours = [ours_by_key[label][key] for label in labels]
+		file_name = f"{key}_comparison.png"
+		_comparison_chart(
+			labels,
+			series_fcfs,
+			series_ours,
+			f"FCFS vs Our Algo: {title}",
+			y_label,
+			os.path.join(output_dir, file_name),
+			"FCFS",
+			"Our Algo",
+		)
+
 def main():
 	visualize_fcfs_metrics()
 	visualize_ourAlgo_metrics()
+	visualize_comparison_metrics()
 
 
 if __name__ == "__main__":
