@@ -33,8 +33,53 @@ def _bar_chart(labels: List[str], values: List[float], title: str, y_label: str,
 	plt.savefig(output_path)
 	plt.close()
 
+def visualize_fcfs_metrics():
+	base_dir = os.path.dirname(os.path.abspath(__file__))
+	output_root = os.path.join(base_dir, "output")
+	metrics_path = os.path.join(output_root, "fcfs_metrics_summary.csv")
+	rows = _read_metrics_summary(metrics_path)
+	labels = [row["source_file"].replace("fcfs_seating_log_", "").replace(".csv", "") for row in rows]
+	
+	output_dir = os.path.join(output_root, "fcfs_charts")
+	os.makedirs(output_dir, exist_ok=True)
 
-def main():
+	_bar_chart(
+        labels,
+        [row["avg_wait"] for row in rows],
+        "FCFS Average Wait Time",
+        "Minutes",
+        os.path.join(output_dir, "avg_wait.png"),
+    )
+	_bar_chart(
+        labels,
+        [row["max_wait"] for row in rows],
+        "FCFS Maximum Wait Time",
+        "Minutes",
+        os.path.join(output_dir, "max_wait.png"),
+    )
+	_bar_chart(
+		labels,
+		[row["seat_util"] for row in rows],
+		"FCFS Seat Utilization",
+		"Utilization (0-1)",
+		os.path.join(output_dir, "seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["fairness_gap"] for row in rows],
+		"FCFS Fairness Gap in Average Waiting Time",
+		"Minutes",
+		os.path.join(output_dir, "fairness_gap.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["groups_served"] for row in rows],
+		"FCFS Groups Served",
+		"Count",
+		os.path.join(output_dir, "groups_served.png"),
+	)
+
+def visualize_ourAlgo_metrics():
 	base_dir = os.path.dirname(os.path.abspath(__file__))
 	output_root = os.path.join(base_dir, "output")
 	metrics_path = os.path.join(output_root, "metrics_summary.csv")
@@ -80,6 +125,10 @@ def main():
 		"Count",
 		os.path.join(output_dir, "groups_served.png"),
 	)
+
+def main():
+	visualize_fcfs_metrics()
+	visualize_ourAlgo_metrics()
 
 
 if __name__ == "__main__":

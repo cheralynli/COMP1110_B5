@@ -1,8 +1,0 @@
-group_id,group_size,arrival_time,seating_time,wait_time,table_id,table_capacity,dining_duration,departure_time
-1,1,0,0,0,1,2,15,15
-2,2,10,10,0,2,2,18,28
-3,1,22,22,0,1,2,16,38
-4,2,35,35,0,2,2,20,55
-5,3,52,52,0,5,4,22,74
-6,1,70,70,0,1,2,15,85
-7,2,88,88,0,1,2,19,107
