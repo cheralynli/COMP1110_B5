@@ -278,10 +278,93 @@ def visualize_comparison_metrics():
 			"Our Algo",
 		)
 
+
+def _split_scenario_key(key: str) -> Dict[str, str]:
+	parts = key.split("_", 1)
+	if len(parts) == 1:
+		return {"scenario": parts[0], "setting": ""}
+	return {"scenario": parts[0], "setting": parts[1]}
+
+
+def _setting_sort_key(setting: str) -> int:
+	if setting == "non_peak":
+		return 0
+	if setting == "peak":
+		return 1
+	return 2
+
+
+def visualize_scenario_comparison_metrics():
+	base_dir = os.path.dirname(os.path.abspath(__file__))
+	output_root = os.path.join(base_dir, "output")
+	fcfs_path = os.path.join(output_root, "fcfs_metrics_summary.csv")
+	ours_path = os.path.join(output_root, "metrics_summary.csv")
+
+	fcfs_rows = _read_metrics_summary(fcfs_path)
+	ours_rows = _read_metrics_summary(ours_path)
+
+	fcfs_by_key = {
+		_scenario_key(row["source_file"], "fcfs_seating_log_"): row for row in fcfs_rows
+	}
+	ours_by_key = {
+		_scenario_key(row["source_file"], "seating_log_"): row for row in ours_rows
+	}
+
+	available_keys = sorted(set(fcfs_by_key) & set(ours_by_key))
+	by_scenario: Dict[str, List[str]] = {}
+	for key in available_keys:
+		split = _split_scenario_key(key)
+		scenario = split["scenario"]
+		setting = split["setting"]
+		by_scenario.setdefault(scenario, []).append(setting)
+
+	metrics = [
+		("avg_wait", "Average Wait Time", "Minutes"),
+		("max_wait", "Maximum Wait Time", "Minutes"),
+		("median_wait", "Median Wait Time", "Minutes"),
+		("seat_util", "Seat Utilization", "Utilization (0-1)"),
+		("true_seat_util", "True Seat Utilization", "Utilization (0-1)"),
+		("service_level_15", "Service Level (<= 15 min)", "Share (0-1)"),
+		("max_queue_length", "Max Queue Length", "Groups"),
+		("avg_queue_length", "Average Queue Length", "Groups"),
+		("fairness_gap", "Fairness Gap in Average Waiting Time", "Minutes"),
+		("groups_served", "Groups Served", "Count"),
+	]
+
+	root_dir = os.path.join(output_root, "scenario_comparison_charts")
+	os.makedirs(root_dir, exist_ok=True)
+
+	for scenario, settings in by_scenario.items():
+		settings_sorted = sorted(set(settings), key=_setting_sort_key)
+		labels = [f"{scenario}_{setting}" if setting else scenario for setting in settings_sorted]
+		comparison_dir = os.path.join(root_dir, scenario)
+		os.makedirs(comparison_dir, exist_ok=True)
+
+		for key, title, y_label in metrics:
+			series_fcfs = []
+			series_ours = []
+			for setting in settings_sorted:
+				combined_key = f"{scenario}_{setting}" if setting else scenario
+				series_fcfs.append(fcfs_by_key[combined_key][key])
+				series_ours.append(ours_by_key[combined_key][key])
+
+			file_name = f"{key}_comparison.png"
+			_comparison_chart(
+				labels,
+				series_fcfs,
+				series_ours,
+				f"{scenario}: FCFS vs Our Algo - {title}",
+				y_label,
+				os.path.join(comparison_dir, file_name),
+				"FCFS",
+				"Our Algo",
+			)
+
 def main():
 	visualize_fcfs_metrics()
 	visualize_ourAlgo_metrics()
 	visualize_comparison_metrics()
+	visualize_scenario_comparison_metrics()
 
 
 if __name__ == "__main__":
