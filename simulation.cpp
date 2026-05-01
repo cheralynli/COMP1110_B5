@@ -7,11 +7,23 @@
 #include <iostream>
 #include <limits>
 
+#ifndef DEPARTURE_REGRET_WEIGHT
+#define DEPARTURE_REGRET_WEIGHT 0.04
+#endif
+
 namespace {
 
 bool compareGroupsByArrival(const Group& left, const Group& right) {
     if (left.arrivalTime != right.arrivalTime) {
         return left.arrivalTime < right.arrivalTime;
+    }
+
+    return left.id < right.id;
+}
+
+bool compareTablesForSeating(const Table& left, const Table& right) {
+    if (left.capacity != right.capacity) {
+        return left.capacity < right.capacity;
     }
 
     return left.id < right.id;
@@ -68,8 +80,46 @@ int findNextQueueDeadline(
 
 } // namespace
 
+namespace {
+
+std::map<int, double> expectedDiningByGroupSize;
+std::map<int, int> maxDiningByGroupSize;
+double defaultExpectedDiningMinutes = 45.0;
+std::map<int, int> estimatedTableAvailableAt;
+
+double expectedDiningForSize(int groupSize) {
+    const auto exact = expectedDiningByGroupSize.find(groupSize);
+    if (exact != expectedDiningByGroupSize.end()) {
+        return exact->second;
+    }
+
+    return defaultExpectedDiningMinutes;
+}
+
+int maxDiningForSize(int groupSize) {
+    const auto exact = maxDiningByGroupSize.find(groupSize);
+    if (exact != maxDiningByGroupSize.end()) {
+        return exact->second;
+    }
+
+    return static_cast<int>(std::round(defaultExpectedDiningMinutes));
+}
+
+int conservativeDiningEstimateForSize(int groupSize) {
+    const int maxDining = maxDiningForSize(groupSize);
+    if (maxDining > 0) {
+        return maxDining;
+    }
+    const double expectedDining = expectedDiningForSize(groupSize);
+    return std::max(1, static_cast<int>(std::ceil(expectedDining * 1.25)));
+}
+
+} // namespace
+
 WokThisWaySim::WokThisWaySim(std::vector<Table> inputTables, double alpha, int window) {
     tables = inputTables;
+    std::sort(tables.begin(), tables.end(), compareTablesForSeating);
+
     fairnessWeight = alpha;
     lookAheadWindow = window;
 
@@ -86,10 +136,12 @@ void WokThisWaySim::resetState() {
     queue.clear();
     totalSeatMinutesUsed = 0;
     totalSimulationTime = 0;
+    estimatedTableAvailableAt.clear();
 
     for (auto& table : tables) {
         table.isFree = true;
         table.availableAt = 0;
+        estimatedTableAvailableAt[table.id] = 0;
     }
 }
 
@@ -125,11 +177,38 @@ void WokThisWaySim::appendSeatingRecord(const Group& group, const Table& table) 
 
 void WokThisWaySim::precomputeHourlyRates(const std::vector<Group>& historicalData) {
     hourlyArrivalRates.clear();
+    expectedDiningByGroupSize.clear();
+    maxDiningByGroupSize.clear();
+    defaultExpectedDiningMinutes = 45.0;
 
     std::map<int, std::map<int, int>> hourlyCounts;
+    std::map<int, int> diningDurationTotals;
+    std::map<int, int> diningDurationCounts;
+    int overallDiningTotal = 0;
+    int overallDiningCount = 0;
+
     for (const Group& group : historicalData) {
         const int arrival_hour = group.arrivalTime / 60;
         hourlyCounts[arrival_hour][group.size]++;
+        diningDurationTotals[group.size] += group.diningDuration;
+        diningDurationCounts[group.size]++;
+        maxDiningByGroupSize[group.size] = std::max(maxDiningByGroupSize[group.size], group.diningDuration);
+        overallDiningTotal += group.diningDuration;
+        overallDiningCount++;
+    }
+
+    if (overallDiningCount > 0) {
+        defaultExpectedDiningMinutes =
+            static_cast<double>(overallDiningTotal) / static_cast<double>(overallDiningCount);
+    }
+
+    for (const auto& countPair : diningDurationCounts) {
+        const int size = countPair.first;
+        const int count = countPair.second;
+        if (count > 0) {
+            expectedDiningByGroupSize[size] =
+                static_cast<double>(diningDurationTotals[size]) / static_cast<double>(count);
+        }
     }
 
     for (const auto& hour_pair : hourlyCounts) {
@@ -170,61 +249,216 @@ double WokThisWaySim::calculateOpportunityCost(int tableCapacity, int currentTim
 }
 
 void WokThisWaySim::processSeating(int currentTime) {
-    bool seatedSomeone = true;
-    while (seatedSomeone) {
-        seatedSomeone = false;
+    const double fairnessScale = std::clamp(fairnessWeight, 0.25, 3.0);
+    const int effectiveLookAhead = std::clamp(lookAheadWindow, 5, 20);
 
-        for (Table& table : tables) {
+    auto getCurrentArrivalRates = [&]() -> const std::map<int, double>* {
+        if (hourlyArrivalRates.empty()) {
+            return nullptr;
+        }
+
+        const int currentHour = currentTime / 60;
+        auto exact = hourlyArrivalRates.find(currentHour);
+        if (exact != hourlyArrivalRates.end()) {
+            return &exact->second;
+        }
+
+        auto after = hourlyArrivalRates.upper_bound(currentHour);
+        if (after == hourlyArrivalRates.begin()) {
+            return &after->second;
+        }
+
+        --after;
+        return &after->second;
+    };
+
+    auto minutesUntilAlternativeTable = [&](const Table& candidateTable, int futureGroupSize) {
+        double bestDelay = std::numeric_limits<double>::infinity();
+
+        for (const Table& otherTable : tables) {
+            if (otherTable.id == candidateTable.id || otherTable.capacity < futureGroupSize) {
+                continue;
+            }
+
+            if (otherTable.isFree) {
+                return 0.0;
+            }
+
+            const auto estimated = estimatedTableAvailableAt.find(otherTable.id);
+            const int estimatedAvailableAt =
+                (estimated == estimatedTableAvailableAt.end())
+                    ? otherTable.availableAt
+                    : estimated->second;
+            const double delay = static_cast<double>(
+                std::max(0, estimatedAvailableAt - currentTime)
+            );
+            if (delay < bestDelay) {
+                bestDelay = delay;
+            }
+        }
+
+        return bestDelay;
+    };
+
+    auto expectedMismatchRegret = [&](const Table& table, const Group& group) {
+        const std::map<int, double>* currentRates = getCurrentArrivalRates();
+        if (currentRates == nullptr) {
+            return 0.0;
+        }
+
+        double regret = 0.0;
+        for (const auto& ratePair : *currentRates) {
+            const int futureGroupSize = ratePair.first;
+            const double lambda = ratePair.second;
+
+            if (futureGroupSize <= group.size || futureGroupSize > table.capacity) {
+                continue;
+            }
+
+            const double alternativeDelay = minutesUntilAlternativeTable(table, futureGroupSize);
+            const double currentGroupBlockingTime = static_cast<double>(
+                conservativeDiningEstimateForSize(group.size)
+            );
+            double blockingWindow = std::min(
+                static_cast<double>(effectiveLookAhead),
+                currentGroupBlockingTime
+            );
+            if (std::isfinite(alternativeDelay)) {
+                blockingWindow = std::min(blockingWindow, alternativeDelay);
+            }
+
+            if (blockingWindow <= 0.0) {
+                continue;
+            }
+
+            const double arrivalProbability = 1.0 - std::exp(-lambda * blockingWindow);
+            const double extraSeatsLost = static_cast<double>(futureGroupSize - group.size);
+            const double futureDiningValue = static_cast<double>(
+                conservativeDiningEstimateForSize(futureGroupSize)
+            );
+
+            regret += arrivalProbability * extraSeatsLost * futureDiningValue;
+        }
+
+        return regret;
+    };
+
+    auto smallestFreeTableCapacityFor = [&](int groupSize) {
+        int bestCapacity = std::numeric_limits<int>::max();
+        for (const Table& table : tables) {
+            if (table.isFree && table.capacity >= groupSize && table.capacity < bestCapacity) {
+                bestCapacity = table.capacity;
+            }
+        }
+
+        return bestCapacity;
+    };
+
+    auto scorePair = [&](const Table& table, const Group& group, int queueIndex) {
+        const int waitTime = std::max(0, currentTime - group.arrivalTime);
+        const int tolerance = std::max(1, group.maxWaitTolerance);
+        const int serviceTime = conservativeDiningEstimateForSize(group.size);
+        const int unusedSeats = table.capacity - group.size;
+        const int smallestCapacity = smallestFreeTableCapacityFor(group.size);
+        const int extraCapacity =
+            (smallestCapacity == std::numeric_limits<int>::max())
+                ? 0
+                : std::max(0, table.capacity - smallestCapacity);
+
+        const double responseRatio = 1.0 +
+            (static_cast<double>(waitTime) / static_cast<double>(serviceTime));
+        const double urgencyRatio = std::min(
+            3.0,
+            static_cast<double>(waitTime) / static_cast<double>(tolerance)
+        );
+        const double fillRatio =
+            static_cast<double>(group.size) / static_cast<double>(table.capacity);
+        const double futureRegret = expectedMismatchRegret(table, group);
+
+        // Departure-aware expected-regret dispatch score.
+        // The old algorithm treated expected future value as a hard threshold and could
+        // leave a usable table empty.  This version always seats the best feasible pair
+        // and uses future demand and expected table availability only as a soft penalty.
+        //
+        // Waiting-time terms are based on Highest Response Ratio Next / aging ideas.
+        // The service-time penalty borrows the Shortest Processing Time intuition for
+        // reducing average delay.  Fill-ratio and capacity penalties keep large tables
+        // available for larger parties when that does not create excessive waiting.
+        return (8.00 * fairnessScale * static_cast<double>(waitTime)) +
+               (55.00 * fairnessScale * responseRatio) +
+               (78.00 * fairnessScale * urgencyRatio) +
+               (55.00 * fillRatio) +
+               (13.00 * static_cast<double>(group.size)) -
+               (2.00 * static_cast<double>(serviceTime)) -
+               (0.3 * static_cast<double>(unusedSeats * unusedSeats)) -
+               (22.00 * static_cast<double>(extraCapacity * extraCapacity)) -
+               (DEPARTURE_REGRET_WEIGHT * futureRegret) -
+               (2.00 * fairnessScale * static_cast<double>(queueIndex));
+    };
+
+    while (true) {
+        int bestTableIdx = -1;
+        int bestQueueIdx = -1;
+        double bestScore = -std::numeric_limits<double>::infinity();
+
+        for (int tableIdx = 0; tableIdx < static_cast<int>(tables.size()); ++tableIdx) {
+            const Table& table = tables[static_cast<std::size_t>(tableIdx)];
             if (!table.isFree) {
                 continue;
             }
 
-            int bestIdx = -1;
-            double bestUtility = -1.0;
-            const int queue_size = queue.size();
-
-            for (int i = 0; i < queue_size; ++i) {
-                if (queue[i].size > table.capacity) {
+            for (int queueIdx = 0; queueIdx < static_cast<int>(queue.size()); ++queueIdx) {
+                const Group& group = queue[static_cast<std::size_t>(queueIdx)];
+                if (group.size > table.capacity) {
                     continue;
                 }
 
-                const int current_wait_time = currentTime - queue[i].arrivalTime;
-                const double utility =
-                    (queue[i].size * queue[i].diningDuration) + (current_wait_time * fairnessWeight);
+                const double score = scorePair(table, group, queueIdx);
+                bool better = score > bestScore;
+                if (!better && std::abs(score - bestScore) < 1e-9 && bestQueueIdx >= 0) {
+                    const Group& previousGroup = queue[static_cast<std::size_t>(bestQueueIdx)];
+                    const Table& previousTable = tables[static_cast<std::size_t>(bestTableIdx)];
 
-                if (utility > bestUtility) {
-                    bestUtility = utility;
-                    bestIdx = i;
+                    if (group.arrivalTime != previousGroup.arrivalTime) {
+                        better = group.arrivalTime < previousGroup.arrivalTime;
+                    } else if (table.capacity != previousTable.capacity) {
+                        better = table.capacity < previousTable.capacity;
+                    } else if (group.id != previousGroup.id) {
+                        better = group.id < previousGroup.id;
+                    } else {
+                        better = table.id < previousTable.id;
+                    }
+                }
+
+                if (better) {
+                    bestScore = score;
+                    bestTableIdx = tableIdx;
+                    bestQueueIdx = queueIdx;
                 }
             }
+        }
 
-            if (bestIdx == -1) {
-                continue;
-            }
-
-            Group bestGroup = queue[bestIdx];
-            const int current_wait_time = currentTime - bestGroup.arrivalTime;
-            const double expected_value_wait = calculateOpportunityCost(table.capacity, currentTime);
-
-            if (bestUtility <= expected_value_wait &&
-                current_wait_time < bestGroup.maxWaitTolerance) {
-                continue;
-            }
-
-            table.isFree = false;
-            table.availableAt = currentTime + bestGroup.diningDuration;
-            bestGroup.seatingTime = currentTime;
-            totalSeatMinutesUsed += bestGroup.size * bestGroup.diningDuration;
-            appendSeatingRecord(bestGroup, table);
-
-            std::cout << "Time " << std::setw(3) << currentTime
-                      << " | Group " << std::setw(2) << bestGroup.id
-                      << " (Size " << bestGroup.size << ") @ Table " << table.id << "\n";
-
-            queue.erase(queue.begin() + bestIdx);
-            seatedSomeone = true;
+        if (bestTableIdx == -1 || bestQueueIdx == -1) {
             break;
         }
+
+        Table& selectedTable = tables[static_cast<std::size_t>(bestTableIdx)];
+        Group selectedGroup = queue[static_cast<std::size_t>(bestQueueIdx)];
+
+        selectedTable.isFree = false;
+        selectedTable.availableAt = currentTime + selectedGroup.diningDuration;
+        estimatedTableAvailableAt[selectedTable.id] =
+            currentTime + conservativeDiningEstimateForSize(selectedGroup.size);
+        selectedGroup.seatingTime = currentTime;
+        totalSeatMinutesUsed += selectedGroup.size * selectedGroup.diningDuration;
+        appendSeatingRecord(selectedGroup, selectedTable);
+
+        std::cout << "Time " << std::setw(3) << currentTime
+                  << " | Group " << std::setw(2) << selectedGroup.id
+                  << " (Size " << selectedGroup.size << ") @ Table "
+                  << selectedTable.id << "\n";
+
+        queue.erase(queue.begin() + bestQueueIdx);
     }
 }
 
@@ -280,11 +514,21 @@ void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
         for (Table& table : tables) {
             if (!table.isFree && table.availableAt <= currentTime) {
                 table.isFree = true;
+                estimatedTableAvailableAt[table.id] = currentTime;
             }
         }
 
         while (nextArrivalIdx < totalGroups && orderedArrivals[nextArrivalIdx].arrivalTime <= currentTime) {
-            queue.push_back(orderedArrivals[nextArrivalIdx]);
+            const Group& arrivingGroup = orderedArrivals[static_cast<std::size_t>(nextArrivalIdx)];
+            if (!hasTableThatFits(tables, arrivingGroup.size)) {
+                std::cout << "Group " << arrivingGroup.id
+                          << " cannot be seated because no table fits size "
+                          << arrivingGroup.size << ".\n";
+                nextArrivalIdx++;
+                continue;
+            }
+
+            queue.push_back(arrivingGroup);
             nextArrivalIdx++;
         }
 
