@@ -1,0 +1,9 @@
+# Pair 1B: fewer larger tables
+TABLE,4,1
+TABLE,4,2
+TABLE,4,3
+TABLE,4,4
+TABLE,4,5
+QUEUE,1,2
+QUEUE,3,4
+QUEUE,5,6

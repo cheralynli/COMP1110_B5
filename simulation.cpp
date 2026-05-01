@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <utility>
 
 namespace {
 
@@ -68,8 +69,16 @@ int findNextQueueDeadline(
 
 } // namespace
 
-WokThisWaySim::WokThisWaySim(std::vector<Table> inputTables, double alpha, int window) {
-    tables = inputTables;
+WokThisWaySim::WokThisWaySim(
+    std::vector<Table> inputTables,
+    std::vector<QueueRule> inputQueueRules,
+    AlgorithmType selectedAlgorithm,
+    double alpha,
+    int window
+) {
+    tables = std::move(inputTables);
+    queueRules = std::move(inputQueueRules);
+    algorithm = selectedAlgorithm;
     fairnessWeight = alpha;
     lookAheadWindow = window;
 
@@ -86,6 +95,11 @@ void WokThisWaySim::resetState() {
     queue.clear();
     totalSeatMinutesUsed = 0;
     totalSimulationTime = 0;
+    totalWaitTime = 0;
+    maxWaitTime = 0;
+    groupsServed = 0;
+    groupsWithin15 = 0;
+    maxQueueLength = 0;
 
     for (auto& table : tables) {
         table.isFree = true;
@@ -143,7 +157,7 @@ void WokThisWaySim::precomputeHourlyRates(const std::vector<Group>& historicalDa
     }
 }
 
-double WokThisWaySim::calculateOpportunityCost(int tableCapacity, int currentTime) {
+double WokThisWaySim::calculateOpportunityCost(int tableCapacity, int currentTime) const {
     if (hourlyArrivalRates.empty()) {
         return 0.0;
     }
@@ -179,42 +193,23 @@ void WokThisWaySim::processSeating(int currentTime) {
                 continue;
             }
 
-            int bestIdx = -1;
-            double bestUtility = -1.0;
-            const int queue_size = queue.size();
-
-            for (int i = 0; i < queue_size; ++i) {
-                if (queue[i].size > table.capacity) {
-                    continue;
-                }
-
-                const int current_wait_time = currentTime - queue[i].arrivalTime;
-                const double utility =
-                    (queue[i].size * queue[i].diningDuration) + (current_wait_time * fairnessWeight);
-
-                if (utility > bestUtility) {
-                    bestUtility = utility;
-                    bestIdx = i;
-                }
-            }
-
-            if (bestIdx == -1) {
+            const int bestIdx = selectNextGroupIndex(table, currentTime);
+            if (bestIdx < 0) {
                 continue;
             }
 
             Group bestGroup = queue[bestIdx];
-            const int current_wait_time = currentTime - bestGroup.arrivalTime;
-            const double expected_value_wait = calculateOpportunityCost(table.capacity, currentTime);
-
-            if (bestUtility <= expected_value_wait &&
-                current_wait_time < bestGroup.maxWaitTolerance) {
-                continue;
-            }
-
             table.isFree = false;
             table.availableAt = currentTime + bestGroup.diningDuration;
             bestGroup.seatingTime = currentTime;
             totalSeatMinutesUsed += bestGroup.size * bestGroup.diningDuration;
+            const int waitTime = bestGroup.seatingTime - bestGroup.arrivalTime;
+            totalWaitTime += waitTime;
+            maxWaitTime = std::max(maxWaitTime, waitTime);
+            groupsServed++;
+            if (waitTime <= 15) {
+                groupsWithin15++;
+            }
             appendSeatingRecord(bestGroup, table);
 
             std::cout << "Time " << std::setw(3) << currentTime
@@ -228,7 +223,111 @@ void WokThisWaySim::processSeating(int currentTime) {
     }
 }
 
-void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
+int WokThisWaySim::selectCustomGroupIndex(const Table& table, int currentTime) const {
+    int bestIdx = -1;
+    double bestUtility = -1.0;
+
+    for (int i = 0; i < static_cast<int>(queue.size()); ++i) {
+        if (queue[i].size > table.capacity) {
+            continue;
+        }
+
+        const int currentWaitTime = currentTime - queue[i].arrivalTime;
+        const double utility =
+            (queue[i].size * queue[i].diningDuration) + (currentWaitTime * fairnessWeight);
+
+        if (utility > bestUtility) {
+            bestUtility = utility;
+            bestIdx = i;
+        }
+    }
+
+    if (bestIdx < 0) {
+        return -1;
+    }
+
+    const Group& bestGroup = queue[bestIdx];
+    const int currentWaitTime = currentTime - bestGroup.arrivalTime;
+    const double expectedValueWait = calculateOpportunityCost(table.capacity, currentTime);
+    if (bestUtility <= expectedValueWait && currentWaitTime < bestGroup.maxWaitTolerance) {
+        return -1;
+    }
+
+    return bestIdx;
+}
+
+int WokThisWaySim::selectFcfsGroupIndex(const Table& table) const {
+    int bestIdx = -1;
+
+    for (int i = 0; i < static_cast<int>(queue.size()); ++i) {
+        if (queue[i].size > table.capacity) {
+            continue;
+        }
+
+        if (bestIdx < 0 ||
+            queue[i].arrivalTime < queue[bestIdx].arrivalTime ||
+            (queue[i].arrivalTime == queue[bestIdx].arrivalTime && queue[i].id < queue[bestIdx].id)) {
+            bestIdx = i;
+        }
+    }
+
+    return bestIdx;
+}
+
+int WokThisWaySim::selectSizeQueueGroupIndex(const Table& table) const {
+    std::vector<QueueRule> eligibleRules;
+    for (const QueueRule& rule : queueRules) {
+        if (rule.minSize <= table.capacity) {
+            eligibleRules.push_back(rule);
+        }
+    }
+
+    std::sort(eligibleRules.begin(), eligibleRules.end(), [](const QueueRule& left, const QueueRule& right) {
+        if (left.maxSize != right.maxSize) {
+            return left.maxSize > right.maxSize;
+        }
+
+        return left.minSize > right.minSize;
+    });
+
+    for (const QueueRule& rule : eligibleRules) {
+        int bestIdx = -1;
+        for (int i = 0; i < static_cast<int>(queue.size()); ++i) {
+            if (queue[i].size < rule.minSize || queue[i].size > rule.maxSize) {
+                continue;
+            }
+            if (queue[i].size > table.capacity) {
+                continue;
+            }
+
+            if (bestIdx < 0 ||
+                queue[i].arrivalTime < queue[bestIdx].arrivalTime ||
+                (queue[i].arrivalTime == queue[bestIdx].arrivalTime && queue[i].id < queue[bestIdx].id)) {
+                bestIdx = i;
+            }
+        }
+
+        if (bestIdx >= 0) {
+            return bestIdx;
+        }
+    }
+
+    return -1;
+}
+
+int WokThisWaySim::selectNextGroupIndex(const Table& table, int currentTime) const {
+    if (algorithm == AlgorithmType::FCFS) {
+        return selectFcfsGroupIndex(table);
+    }
+
+    if (algorithm == AlgorithmType::SizeQueue) {
+        return selectSizeQueueGroupIndex(table);
+    }
+
+    return selectCustomGroupIndex(table, currentTime);
+}
+
+SimulationSummary WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
     resetState();
     initializeSeatingLog();
 
@@ -252,9 +351,11 @@ void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
             }
         }
 
-        const int nextQueueDeadline = findNextQueueDeadline(queue, tables, currentTime);
-        if (nextQueueDeadline < nextEventTime) {
-            nextEventTime = nextQueueDeadline;
+        if (algorithm == AlgorithmType::Custom) {
+            const int nextQueueDeadline = findNextQueueDeadline(queue, tables, currentTime);
+            if (nextQueueDeadline < nextEventTime) {
+                nextEventTime = nextQueueDeadline;
+            }
         }
 
         if (nextEventTime == std::numeric_limits<int>::max()) {
@@ -288,15 +389,30 @@ void WokThisWaySim::runSimulation(const std::vector<Group>& arrivals) {
             nextArrivalIdx++;
         }
 
+        maxQueueLength = std::max(maxQueueLength, static_cast<int>(queue.size()));
         processSeating(currentTime);
     }
 
+    SimulationSummary summary;
+    summary.groupsServed = groupsServed;
+    if (groupsServed > 0) {
+        summary.averageWait = static_cast<double>(totalWaitTime) / static_cast<double>(groupsServed);
+        summary.serviceLevel15 =
+            (static_cast<double>(groupsWithin15) / static_cast<double>(groupsServed)) * 100.0;
+    }
+    summary.maxWait = maxWaitTime;
+    summary.maxQueueLength = maxQueueLength;
+    summary.totalSimulationTime = totalSimulationTime;
+
     if (totalSeatsAvailable == 0 || totalSimulationTime == 0) {
         std::cout << "\nUtilization: 0.00%\n";
-        return;
+        summary.tableUtilization = 0.0;
+        return summary;
     }
 
     const double maxPossibleSeatMinutes = totalSeatsAvailable * totalSimulationTime;
     const double utilization = (totalSeatMinutesUsed / maxPossibleSeatMinutes) * 100.0;
     std::cout << "\nUtilization: " << std::fixed << std::setprecision(2) << utilization << "%\n";
+    summary.tableUtilization = utilization;
+    return summary;
 }

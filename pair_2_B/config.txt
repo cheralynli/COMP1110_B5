@@ -1,0 +1,13 @@
+# Pair 2B: expanded number of tables
+TABLE,2,1
+TABLE,2,2
+TABLE,2,3
+TABLE,2,4
+TABLE,2,5
+TABLE,4,6
+TABLE,4,7
+TABLE,4,8
+TABLE,4,9
+QUEUE,1,2
+QUEUE,3,4
+QUEUE,5,6

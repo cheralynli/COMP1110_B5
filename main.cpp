@@ -15,73 +15,211 @@ namespace {
 
 struct ScenarioOption {
     std::string name;
-    std::string restaurantType;
-    std::string demandLevel;
+    std::string label;
     std::string description;
     std::string configPath;
     std::string arrivalsPath;
 };
 
-struct RestaurantOption {
+struct PairOption {
+    std::string pairId;
+    std::string restaurantKey;
+    std::string restaurantLabel;
+    std::string title;
+    std::string factorChanged;
+    std::string comparisonFocus;
+    ScenarioOption optionA;
+    ScenarioOption optionB;
+};
+
+struct CategoryOption {
     std::string key;
     std::string label;
     std::string description;
 };
 
-const std::vector<RestaurantOption> kRestaurants = {
-    {"fastfood", "Fast Food", "Small groups, quick turnover, short dining durations"},
-    {"cafe", "Cafe", "Small-to-medium groups with moderate dining durations"},
-    {"family", "Family Dining", "Larger groups with longer stays and mixed table sizes"},
+struct AlgorithmOption {
+    AlgorithmType type;
+    std::string key;
+    std::string label;
+    std::string description;
 };
 
-const std::vector<ScenarioOption> kScenarios = {
+struct SimulationSettings {
+    double fairnessWeight = 1.0;
+    int lookAheadWindow = 15;
+};
+
+struct RunOutcome {
+    bool success = false;
+    SimulationSummary summary;
+    std::string logPath;
+};
+
+const std::vector<AlgorithmOption> kAlgorithms = {
     {
-        "fastfood_non_peak",
+        AlgorithmType::Custom,
+        "custom",
+        "Our Custom Algorithm",
+        "Uses utility, waiting time, dining duration, and opportunity cost to decide who to seat.",
+    },
+    {
+        AlgorithmType::FCFS,
+        "fcfs",
+        "FCFS",
+        "Seats the earliest arriving group that fits an available table.",
+    },
+    {
+        AlgorithmType::SizeQueue,
+        "size_queue",
+        "Size-Based Queue",
+        "Uses the QUEUE size bands and lets larger tables prefer larger-group queues first.",
+    },
+};
+
+const std::vector<CategoryOption> kCategories = {
+    {
         "fastfood",
-        "non_peak",
-        "Fast food with light traffic and quick turnover",
-        "fastfood_non_peak/config.txt",
-        "fastfood_non_peak/arrivals.txt",
+        "Fast Food",
+        "Shorter dining times, quick turnover, and small to medium groups.",
     },
     {
-        "fastfood_peak",
+        "cafe",
+        "Cafe",
+        "Mostly small groups with a few medium groups and moderate stay lengths.",
+    },
+    {
+        "family",
+        "Family Dining",
+        "Larger groups with longer dining durations and stronger table-size tradeoffs.",
+    },
+    {
+        "sushi",
+        "Sushi Belt",
+        "Counter-style dining with many solo diners and pairs, plus a few small groups.",
+    },
+    {
+        "kbbq",
+        "KBBQ / Hotpot",
+        "Longer dining times, slower turnover, and more medium-to-large group pressure.",
+    },
+    {
+        "all",
+        "All Restaurant Styles",
+        "Browse every comparison study in one menu.",
+    },
+};
+
+const std::vector<PairOption> kPairs = {
+    {
+        "family_dinner",
+        "family",
+        "Family Dining",
+        "Balanced vs Large-Table-Heavy Layout",
+        "table size mix",
+        "Use this study to compare a balanced family dining layout against one that strongly favors larger tables.",
+        {
+            "family_dinner_A",
+            "Variation A",
+            "Balanced 2-seat, 4-seat, and 6-seat layout for mixed family groups.",
+            "pair_3_A/config.txt",
+            "pair_3_A/arrivals.txt",
+        },
+        {
+            "family_dinner_B",
+            "Variation B",
+            "Large-table-heavy layout with fewer small-table options for families.",
+            "pair_3_B/config.txt",
+            "pair_3_B/arrivals.txt",
+        },
+    },
+    {
+        "cafe_lunch",
+        "cafe",
+        "Cafe",
+        "Two-Seat Heavy vs Mixed Cafe Layout",
+        "table size mix",
+        "Use this study to compare a cafe dominated by 2-seat tables against a more flexible mixed layout.",
+        {
+            "cafe_lunch_A",
+            "Variation A",
+            "Mostly 2-seat cafe tables with only one 4-seat table.",
+            "pair_4_A/config.txt",
+            "pair_4_A/arrivals.txt",
+        },
+        {
+            "cafe_lunch_B",
+            "Variation B",
+            "A more mixed cafe layout with more 4-seat flexibility.",
+            "pair_4_B/config.txt",
+            "pair_4_B/arrivals.txt",
+        },
+    },
+    {
+        "fastfood_rush",
         "fastfood",
-        "peak",
-        "Fast food rush with dense small-party arrivals",
-        "fastfood_peak/config.txt",
-        "fastfood_peak/arrivals.txt",
+        "Fast Food",
+        "Limited vs Expanded Rush Capacity",
+        "total seating capacity",
+        "Use this study to compare whether expanding rush-hour seating lowers waits enough to justify the extra capacity.",
+        {
+            "fastfood_rush_A",
+            "Variation A",
+            "Limited seating capacity during the rush.",
+            "pair_5_A/config.txt",
+            "pair_5_A/arrivals.txt",
+        },
+        {
+            "fastfood_rush_B",
+            "Variation B",
+            "Expanded seating capacity with the same arrivals and durations.",
+            "pair_5_B/config.txt",
+            "pair_5_B/arrivals.txt",
+        },
     },
     {
-        "cafe_non_peak",
-        "cafe",
-        "non_peak",
-        "Cafe with lighter traffic and moderate dining durations",
-        "cafe_non_peak/config.txt",
-        "cafe_non_peak/arrivals.txt",
+        "sushi_belt",
+        "sushi",
+        "Sushi Belt",
+        "Solo-Seat Priority",
+        "small-seat vs group-seat emphasis",
+        "Use this study to compare a sushi belt that prioritizes solo and pair seating against one that gives up solo spots for more 4-seat flexibility.",
+        {
+            "sushi_belt_A",
+            "Variation A",
+            "Many 1-seat and 2-seat spots, optimized for solo diners and pairs.",
+            "pair_6_A/config.txt",
+            "pair_6_A/arrivals.txt",
+        },
+        {
+            "sushi_belt_B",
+            "Variation B",
+            "Fewer solo spots and more 4-seat tables for small groups.",
+            "pair_6_B/config.txt",
+            "pair_6_B/arrivals.txt",
+        },
     },
     {
-        "cafe_peak",
-        "cafe",
-        "peak",
-        "Cafe rush with more queue pressure",
-        "cafe_peak/config.txt",
-        "cafe_peak/arrivals.txt",
-    },
-    {
-        "family_non_peak",
-        "family",
-        "non_peak",
-        "Family dining with moderate traffic and larger groups",
-        "family_non_peak/config.txt",
-        "family_non_peak/arrivals.txt",
-    },
-    {
-        "family_peak",
-        "family",
-        "peak",
-        "Family dining rush with many medium and large groups",
-        "family_peak/config.txt",
-        "family_peak/arrivals.txt",
+        "kbbq_hotpot",
+        "kbbq",
+        "KBBQ / Hotpot",
+        "Medium vs Large Group Focus",
+        "layout focus for expected group sizes",
+        "Use this study to compare a KBBQ layout built around 4-seat tables against one with more 6-seat tables for longer large-group sessions.",
+        {
+            "kbbq_hotpot_A",
+            "Variation A",
+            "More 4-seat tables for medium groups and couples joining another pair.",
+            "pair_7_A/config.txt",
+            "pair_7_A/arrivals.txt",
+        },
+        {
+            "kbbq_hotpot_B",
+            "Variation B",
+            "More 6-seat tables to better support large groups during long stays.",
+            "pair_7_B/config.txt",
+            "pair_7_B/arrivals.txt",
+        },
     },
 };
 
@@ -144,12 +282,7 @@ int utf8DisplayWidth(const std::string& text) {
             codepoint = ch;
         }
 
-        if (codepoint >= 0x1100U) {
-            width += 2;
-        } else {
-            width += 1;
-        }
-
+        width += (codepoint >= 0x1100U) ? 2 : 1;
         i += advance;
     }
 
@@ -218,6 +351,12 @@ void clearInputState() {
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
+void pauseForEnter() {
+    std::cout << "\nPress Enter to continue.";
+    std::string line;
+    std::getline(std::cin, line);
+}
+
 char promptForStartAction() {
     const std::vector<std::string> title = splitLines(
 R"( _   _  __  _  _______ _  _ _   __  _   _   __ __   __
@@ -243,7 +382,14 @@ R"(    (\
     );
 
     while (true) {
-        renderCenteredBlock({title, cat}, {"[s] Start   [q] Quit", "", "Choose an option: "});
+        renderCenteredBlock(
+            {title, cat},
+            {
+                "[s] Start Case Study   [q] Quit",
+                "",
+                "Choose an option: ",
+            }
+        );
 
         std::string line;
         std::getline(std::cin, line);
@@ -255,59 +401,148 @@ R"(    (\
         if (choice == 's' || choice == 'q') {
             return choice;
         }
-
-        std::cout << "Invalid choice. Press Enter to continue.";
-        std::getline(std::cin, line);
     }
 }
 
-int promptForRestaurantChoice() {
+const AlgorithmOption* promptForAlgorithmChoice() {
     while (true) {
         clearScreen();
-        std::cout << "\nChoose a restaurant type\n";
-        for (std::size_t i = 0; i < kRestaurants.size(); ++i) {
+        std::cout << "\nChoose an algorithm to run\n\n";
+        for (std::size_t i = 0; i < kAlgorithms.size(); ++i) {
             std::cout << "  " << (i + 1) << ". "
-                      << std::left << std::setw(14) << kRestaurants[i].label
-                      << " - " << kRestaurants[i].description << '\n';
+                      << std::left << std::setw(22) << kAlgorithms[i].label
+                      << " - " << kAlgorithms[i].description << '\n';
         }
-        std::cout << "  " << (kRestaurants.size() + 1) << ". Custom file paths\n";
-        std::cout << "  0. Exit\n";
-        std::cout << "\nChoose a restaurant: ";
+        std::cout << "  0. Back\n";
+        std::cout << "\nWhat are you comparing here?\n";
+        std::cout << "  You will keep the same arrivals inside each pair and change only one restaurant factor.\n";
+        std::cout << "  This menu decides the seating logic you want to test on those same scenarios.\n";
+        std::cout << "\nChoose an algorithm: ";
 
         int choice = -1;
         if (std::cin >> choice) {
             clearInputState();
-            if (choice >= 0 && choice <= static_cast<int>(kRestaurants.size() + 1)) {
-                return choice;
+            if (choice == 0) {
+                return nullptr;
+            }
+            if (choice >= 1 && choice <= static_cast<int>(kAlgorithms.size())) {
+                return &kAlgorithms[choice - 1];
             }
         } else {
             clearInputState();
         }
-
-        std::cout << "Invalid choice. Please enter a number from the menu.\n";
     }
 }
 
-int promptForDemandChoice(const RestaurantOption& restaurant) {
+int promptForCategoryChoice() {
     while (true) {
         clearScreen();
-        std::cout << "\nChoose demand level for " << restaurant.label << '\n';
-        std::cout << "  1. Non-peak\n";
-        std::cout << "  2. Peak\n";
+        std::cout << "\nChoose a restaurant case study\n\n";
+        for (std::size_t i = 0; i < kCategories.size(); ++i) {
+            std::cout << "  " << (i + 1) << ". "
+                      << std::left << std::setw(24) << kCategories[i].label
+                      << " - " << kCategories[i].description << '\n';
+        }
+        std::cout << "  " << (kCategories.size() + 1) << ". Custom file paths"
+                  << " - Run one config/arrivals pair directly\n";
         std::cout << "  0. Back\n";
-        std::cout << "\nChoose demand level: ";
+        std::cout << "\nWhat are you comparing after this?\n";
+        std::cout << "  Each restaurant has one main A vs B setup study.\n";
+        std::cout << "  A and B keep the same arrivals and change one restaurant-setup factor.\n";
+        std::cout << "\nChoose a restaurant case study: ";
 
         int choice = -1;
         if (std::cin >> choice) {
             clearInputState();
-            if (choice >= 0 && choice <= 2) {
+            if (choice >= 0 && choice <= static_cast<int>(kCategories.size() + 1)) {
                 return choice;
             }
         } else {
             clearInputState();
         }
+    }
+}
 
-        std::cout << "Invalid choice. Please enter 0, 1, or 2.\n";
+std::vector<const PairOption*> collectPairsForCategory(const std::string& categoryKey) {
+    std::vector<const PairOption*> result;
+    for (const PairOption& pair : kPairs) {
+        if (categoryKey == "all" || pair.restaurantKey == categoryKey) {
+            result.push_back(&pair);
+        }
+    }
+    return result;
+}
+
+const PairOption* promptForPairChoice(const CategoryOption& category) {
+    const std::vector<const PairOption*> pairs = collectPairsForCategory(category.key);
+    if (pairs.size() == 1) {
+        return pairs.front();
+    }
+
+    while (true) {
+        clearScreen();
+        std::cout << "\n" << category.label << " Comparison Studies\n\n";
+        std::cout << "Each study below compares variation A and variation B.\n";
+        std::cout << "Inside each study, the arrivals stay the same and only one restaurant factor changes.\n\n";
+
+        for (std::size_t i = 0; i < pairs.size(); ++i) {
+            const PairOption& pair = *pairs[i];
+            std::cout << "  " << (i + 1) << ". " << pair.title << '\n';
+            std::cout << "     Factor changed: " << pair.factorChanged << '\n';
+            std::cout << "     Same demand in A and B. Only the restaurant setup changes.\n";
+            std::cout << "     A: " << pair.optionA.description << '\n';
+            std::cout << "     B: " << pair.optionB.description << '\n';
+            std::cout << "     What this study tells you: " << pair.comparisonFocus << "\n\n";
+        }
+
+        std::cout << "  0. Back\n";
+        std::cout << "\nChoose a comparison study: ";
+
+        int choice = -1;
+        if (std::cin >> choice) {
+            clearInputState();
+            if (choice == 0) {
+                return nullptr;
+            }
+            if (choice >= 1 && choice <= static_cast<int>(pairs.size())) {
+                return pairs[choice - 1];
+            }
+        } else {
+            clearInputState();
+        }
+    }
+}
+
+int promptForPairAction(const PairOption& pair) {
+    while (true) {
+        clearScreen();
+        std::cout << "\n" << pair.restaurantLabel << ": " << pair.title << "\n\n";
+        std::cout << "Restaurant theme: " << pair.restaurantLabel << '\n';
+        std::cout << "What you are comparing: which restaurant setup works better for the same demand.\n";
+        std::cout << "What stays the same: the arrivals file, group sizes, and dining-duration pattern.\n";
+        std::cout << "The one factor that changes: " << pair.factorChanged << '\n';
+        std::cout << "The two restaurant setups are:\n";
+        std::cout << "  A: " << pair.optionA.description << '\n';
+        std::cout << "  B: " << pair.optionB.description << '\n';
+        std::cout << "\nHow to compare this pair well:\n";
+        std::cout << "  Look at average wait, max wait, groups served, utilization, service level within 15 minutes,\n";
+        std::cout << "  and max queue length. Lower wait and queue are better, while higher served/utilization/service\n";
+        std::cout << "  level are usually better.\n\n";
+        std::cout << "  1. Run variation A only\n";
+        std::cout << "  2. Run variation B only\n";
+        std::cout << "  3. Compare A vs B side by side\n";
+        std::cout << "  0. Back\n";
+        std::cout << "\nChoose an action: ";
+
+        int choice = -1;
+        if (std::cin >> choice) {
+            clearInputState();
+            if (choice >= 0 && choice <= 3) {
+                return choice;
+            }
+        } else {
+            clearInputState();
+        }
     }
 }
 
@@ -347,76 +582,186 @@ int promptForInt(const std::string& label, int defaultValue) {
     }
 }
 
+SimulationSettings promptForAlgorithmSettings(const AlgorithmOption& algorithm) {
+    SimulationSettings settings;
+    if (algorithm.type != AlgorithmType::Custom) {
+        return settings;
+    }
+
+    clearScreen();
+    std::cout << "\nCustom algorithm settings\n\n";
+    std::cout << "These settings only affect the custom heuristic.\n";
+    std::cout << "FCFS and size-based queue ignore them.\n\n";
+    settings.fairnessWeight = promptForDouble("Fairness weight", 1.0);
+    settings.lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+    return settings;
+}
+
 ScenarioOption promptForCustomScenario() {
     ScenarioOption option;
     option.name = "custom_run";
-    option.description = "Custom input paths";
+    option.label = "Custom files";
+    option.description = "Direct run using a config file path and an arrivals file path.";
 
     clearScreen();
     std::cout << "Custom scenario input\n\n";
+    std::cout << "Optional short scenario name for logs [custom_run]: ";
+    std::string line;
+    std::getline(std::cin, line);
+    if (!line.empty()) {
+        option.name = line;
+    }
+
     std::cout << "Enter config file path: ";
     std::getline(std::cin, option.configPath);
-
     std::cout << "Enter arrivals file path: ";
     std::getline(std::cin, option.arrivalsPath);
-
     return option;
 }
 
-const ScenarioOption* findScenario(const std::string& restaurantType, const std::string& demandLevel) {
-    for (const ScenarioOption& scenario : kScenarios) {
-        if (scenario.restaurantType == restaurantType && scenario.demandLevel == demandLevel) {
-            return &scenario;
-        }
-    }
-
-    return nullptr;
+std::string buildLogPath(const std::string& scenarioName, const std::string& algorithmKey) {
+    return "seating_log_" + scenarioName + "_" + algorithmKey + ".csv";
 }
 
-std::string buildLogPath(const std::string& scenarioName) {
-    return "seating_log_" + scenarioName + ".csv";
+void printSummary(const SimulationSummary& summary) {
+    std::cout << "\nSummary metrics\n";
+    std::cout << "  Groups served:             " << summary.groupsServed << '\n';
+    std::cout << "  Average wait time:         " << std::fixed << std::setprecision(2)
+              << summary.averageWait << " minutes\n";
+    std::cout << "  Maximum wait time:         " << summary.maxWait << " minutes\n";
+    std::cout << "  Table utilization:         " << std::fixed << std::setprecision(2)
+              << summary.tableUtilization << "%\n";
+    std::cout << "  Service level within 15m:  " << std::fixed << std::setprecision(2)
+              << summary.serviceLevel15 << "%\n";
+    std::cout << "  Maximum queue length:      " << summary.maxQueueLength << '\n';
 }
 
-bool runScenario(const ScenarioOption& scenario) {
+RunOutcome runScenario(
+    const ScenarioOption& scenario,
+    const AlgorithmOption& algorithm,
+    const SimulationSettings& settings,
+    bool pauseAfterRun
+) {
     InputParser parser;
     parser.loadConfig(scenario.configPath);
     parser.loadArrivals(scenario.arrivalsPath);
 
     const std::vector<Table>& tables = parser.getTables();
     const std::vector<Group>& arrivals = parser.getArrivals();
+    const std::vector<QueueRule>& queueRules = parser.getQueueRules();
 
+    RunOutcome outcome;
     if (tables.empty()) {
         std::cout << "No tables were loaded from " << scenario.configPath << ".\n";
-        return false;
+        if (pauseAfterRun) {
+            pauseForEnter();
+        }
+        return outcome;
     }
 
     if (arrivals.empty()) {
         std::cout << "No arrivals were loaded from " << scenario.arrivalsPath << ".\n";
-        return false;
+        if (pauseAfterRun) {
+            pauseForEnter();
+        }
+        return outcome;
     }
 
-    const double fairnessWeight = promptForDouble("Fairness weight", 1.0);
-    const int lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+    WokThisWaySim simulation(
+        tables,
+        queueRules,
+        algorithm.type,
+        settings.fairnessWeight,
+        settings.lookAheadWindow
+    );
+    if (algorithm.type == AlgorithmType::Custom) {
+        simulation.precomputeHourlyRates(arrivals);
+    }
 
-    WokThisWaySim simulation(tables, fairnessWeight, lookAheadWindow);
-    const std::string logPath = buildLogPath(scenario.name);
-    simulation.setSeatingLogPath(logPath);
-    simulation.precomputeHourlyRates(arrivals);
+    outcome.logPath = buildLogPath(scenario.name, algorithm.key);
+    simulation.setSeatingLogPath(outcome.logPath);
 
     clearScreen();
-    std::cout << "\nRunning " << scenario.name << '\n';
+    std::cout << "\nRunning " << scenario.name << " with " << algorithm.label << "\n\n";
+    std::cout << "Scenario meaning: " << scenario.description << '\n';
     std::cout << "Config:   " << scenario.configPath << '\n';
     std::cout << "Arrivals: " << scenario.arrivalsPath << '\n';
-    std::cout << "Log file: " << logPath << "\n\n";
+    std::cout << "Log file: " << outcome.logPath << "\n\n";
 
-    simulation.runSimulation(arrivals);
+    outcome.summary = simulation.runSimulation(arrivals);
+    outcome.success = true;
 
-    std::cout << "\nSimulation complete. Seating log saved to " << logPath << ".\n";
-    std::cout << "Press Enter to return to the main menu.";
+    printSummary(outcome.summary);
+    std::cout << "\nSeating log saved to " << outcome.logPath << ".\n";
 
-    std::string line;
-    std::getline(std::cin, line);
-    return true;
+    if (pauseAfterRun) {
+        pauseForEnter();
+    }
+
+    return outcome;
+}
+
+void printComparisonRow(
+    const std::string& metric,
+    double valueA,
+    double valueB,
+    bool lowerIsBetter,
+    const std::string& unit
+) {
+    std::string better = "Tie";
+    if (valueA != valueB) {
+        if (lowerIsBetter) {
+            better = (valueA < valueB) ? "A" : "B";
+        } else {
+            better = (valueA > valueB) ? "A" : "B";
+        }
+    }
+
+    std::cout << std::left << std::setw(28) << metric
+              << std::right << std::setw(12) << std::fixed << std::setprecision(2) << valueA
+              << std::setw(12) << std::fixed << std::setprecision(2) << valueB
+              << std::setw(10) << better
+              << "    " << unit << '\n';
+}
+
+void showPairComparison(
+    const PairOption& pair,
+    const AlgorithmOption& algorithm,
+    const RunOutcome& outcomeA,
+    const RunOutcome& outcomeB
+) {
+    clearScreen();
+    std::cout << "\nDetailed comparison for " << pair.restaurantLabel << ": " << pair.title
+              << " using " << algorithm.label << "\n\n";
+    std::cout << "Restaurant theme: " << pair.restaurantLabel << '\n';
+    std::cout << "What you are comparing: two restaurant setups under the same demand.\n";
+    std::cout << "Same in A and B: arrivals, group sizes, and dining-duration pattern.\n";
+    std::cout << "Changed factor: " << pair.factorChanged << '\n';
+    std::cout << "A setup: " << pair.optionA.description << '\n';
+    std::cout << "B setup: " << pair.optionB.description << '\n';
+    std::cout << "Why this study exists: " << pair.comparisonFocus << "\n\n";
+
+    std::cout << std::left << std::setw(28) << "Metric"
+              << std::right << std::setw(12) << "A"
+              << std::setw(12) << "B"
+              << std::setw(10) << "Better"
+              << "    Meaning\n";
+    std::cout << std::string(78, '-') << '\n';
+    printComparisonRow("Average wait", outcomeA.summary.averageWait, outcomeB.summary.averageWait, true, "lower is better");
+    printComparisonRow("Maximum wait", static_cast<double>(outcomeA.summary.maxWait), static_cast<double>(outcomeB.summary.maxWait), true, "lower is better");
+    printComparisonRow("Groups served", static_cast<double>(outcomeA.summary.groupsServed), static_cast<double>(outcomeB.summary.groupsServed), false, "higher is better");
+    printComparisonRow("Table utilization %", outcomeA.summary.tableUtilization, outcomeB.summary.tableUtilization, false, "higher can be better");
+    printComparisonRow("Service within 15m %", outcomeA.summary.serviceLevel15, outcomeB.summary.serviceLevel15, false, "higher is better");
+    printComparisonRow("Max queue length", static_cast<double>(outcomeA.summary.maxQueueLength), static_cast<double>(outcomeB.summary.maxQueueLength), true, "lower is better");
+
+    std::cout << "\nInterpret this carefully:\n";
+    std::cout << "  If one side has lower wait but much lower utilization, it may simply be under less pressure.\n";
+    std::cout << "  If one side has higher utilization and still keeps waits low, that layout is usually stronger.\n";
+    std::cout << "  Because the arrivals are identical, the differences above come from the restaurant setup, not demand.\n";
+    std::cout << "\nLogs saved to:\n";
+    std::cout << "  A -> " << outcomeA.logPath << '\n';
+    std::cout << "  B -> " << outcomeB.logPath << '\n';
+    pauseForEnter();
 }
 
 } // namespace
@@ -430,31 +775,54 @@ int main() {
             return 0;
         }
 
-        const int restaurantChoice = promptForRestaurantChoice();
-        if (restaurantChoice == 0) {
+        const AlgorithmOption* algorithm = promptForAlgorithmChoice();
+        if (algorithm == nullptr) {
             continue;
         }
 
-        ScenarioOption selectedScenario;
-        if (restaurantChoice == static_cast<int>(kRestaurants.size() + 1)) {
-            selectedScenario = promptForCustomScenario();
-        } else {
-            const RestaurantOption& restaurant = kRestaurants[restaurantChoice - 1];
-            const int demandChoice = promptForDemandChoice(restaurant);
-            if (demandChoice == 0) {
+        const SimulationSettings settings = promptForAlgorithmSettings(*algorithm);
+
+        while (true) {
+            const int categoryChoice = promptForCategoryChoice();
+            if (categoryChoice == 0) {
+                break;
+            }
+
+            if (categoryChoice == static_cast<int>(kCategories.size() + 1)) {
+                const ScenarioOption customScenario = promptForCustomScenario();
+                runScenario(customScenario, *algorithm, settings, true);
                 continue;
             }
 
-            const std::string demandLevel = (demandChoice == 1) ? "non_peak" : "peak";
-            const ScenarioOption* scenario = findScenario(restaurant.key, demandLevel);
-            if (scenario == nullptr) {
-                std::cout << "Could not find a scenario for that selection.\n";
+            const CategoryOption& category = kCategories[categoryChoice - 1];
+            const PairOption* pair = promptForPairChoice(category);
+            if (pair == nullptr) {
                 continue;
             }
 
-            selectedScenario = *scenario;
+            const int action = promptForPairAction(*pair);
+            if (action == 0) {
+                continue;
+            }
+
+            if (action == 1) {
+                runScenario(pair->optionA, *algorithm, settings, true);
+                continue;
+            }
+
+            if (action == 2) {
+                runScenario(pair->optionB, *algorithm, settings, true);
+                continue;
+            }
+
+            const RunOutcome outcomeA = runScenario(pair->optionA, *algorithm, settings, false);
+            const RunOutcome outcomeB = runScenario(pair->optionB, *algorithm, settings, false);
+            if (outcomeA.success && outcomeB.success) {
+                showPairComparison(*pair, *algorithm, outcomeA, outcomeB);
+            } else {
+                std::cout << "\nComparison could not be completed.\n";
+                pauseForEnter();
+            }
         }
-
-        runScenario(selectedScenario);
     }
 }

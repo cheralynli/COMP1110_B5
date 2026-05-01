@@ -28,29 +28,62 @@
 #include <string>
 #include <vector>
 
+enum class AlgorithmType {
+    Custom,
+    FCFS,
+    SizeQueue,
+};
+
+struct SimulationSummary {
+    int groupsServed = 0;
+    double averageWait = 0.0;
+    int maxWait = 0;
+    double tableUtilization = 0.0;
+    double serviceLevel15 = 0.0;
+    int maxQueueLength = 0;
+    int totalSimulationTime = 0;
+};
+
 class WokThisWaySim {
 public:
-    WokThisWaySim(std::vector<Table> tables, double fairnessWeight, int lookAheadWindow);
+    WokThisWaySim(
+        std::vector<Table> tables,
+        std::vector<QueueRule> queueRules,
+        AlgorithmType algorithm,
+        double fairnessWeight,
+        int lookAheadWindow
+    );
 
     void precomputeHourlyRates(const std::vector<Group>& historicalData);
-    void runSimulation(const std::vector<Group>& arrivals);
+    SimulationSummary runSimulation(const std::vector<Group>& arrivals);
     void setSeatingLogPath(const std::string& path);
 
 private:
     void appendSeatingRecord(const Group& group, const Table& table);
-    double calculateOpportunityCost(int tableCapacity, int currentTime);
+    double calculateOpportunityCost(int tableCapacity, int currentTime) const;
     void initializeSeatingLog() const;
     void processSeating(int currentTime);
     void resetState();
+    int selectNextGroupIndex(const Table& table, int currentTime) const;
+    int selectCustomGroupIndex(const Table& table, int currentTime) const;
+    int selectFcfsGroupIndex(const Table& table) const;
+    int selectSizeQueueGroupIndex(const Table& table) const;
 
     std::vector<Table> tables;
     std::vector<Group> queue;
+    std::vector<QueueRule> queueRules;
+    AlgorithmType algorithm;
     double fairnessWeight;
     int lookAheadWindow;
     std::map<int, std::map<int, double>> hourlyArrivalRates;
     int totalSeatsAvailable = 0;
     int totalSeatMinutesUsed = 0;
     int totalSimulationTime = 0;
+    int totalWaitTime = 0;
+    int maxWaitTime = 0;
+    int groupsServed = 0;
+    int groupsWithin15 = 0;
+    int maxQueueLength = 0;
     std::string seatingLogPath = "seating_log.csv";
 };
 

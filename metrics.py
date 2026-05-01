@@ -1,118 +1,112 @@
-from typing import Any, Dict, List
+import csv
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+
+def load_seating_records(log_path: Path) -> List[Dict[str, Any]]:
+    records: List[Dict[str, Any]] = []
+    with log_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            typed_row: Dict[str, Any] = {}
+            for key, value in row.items():
+                typed_row[key] = int(value) if value not in (None, "") else None
+            records.append(typed_row)
+    return records
 
 
 def avg_wait_time(seating_records: List[Dict[str, Any]]) -> float:
-    """
-    THere must be a field "wait_time" in each record of seating_records, which represents the waiting time for that group.
-    """
-    total_wait = 0.0
-    count = 0
-
-    for record in seating_records:
-        if "wait_time" in record and record["wait_time"] is not None:
-            total_wait += float(record["wait_time"])
-            count += 1
-
-    if count == 0:
+    waits = [float(record["wait_time"]) for record in seating_records if record.get("wait_time") is not None]
+    if not waits:
         return 0.0
-
-    return total_wait / count
+    return sum(waits) / len(waits)
 
 
 def max_wait_time(seating_records: List[Dict[str, Any]]) -> float:
-    max_wait = 0.0
-    found = False
-
-    for record in seating_records:
-        if ("wait_time" in record and record["wait_time"] is not None):
-            wait_time = float(record["wait_time"])
-            if (not found or wait_time > max_wait):
-                max_wait = wait_time
-                found = True
-
-    if (not found):
+    waits = [float(record["wait_time"]) for record in seating_records if record.get("wait_time") is not None]
+    if not waits:
         return 0.0
-
-    return max_wait
+    return max(waits)
 
 
 def groups_served(seating_records: List[Dict[str, Any]]) -> int:
     return len(seating_records)
 
 
-def seat_utilization(seating_records: List[Dict[str, Any]]) -> float:
-    total_used_seat_time = 0.0
-    total_available_seat_time = 0.0
+def simulation_end_time(seating_records: List[Dict[str, Any]]) -> int:
+    departures = [
+        int(record["departure_time"])
+        for record in seating_records
+        if record.get("departure_time") is not None
+    ]
+    if not departures:
+        return 0
+    return max(departures)
 
-    for record in seating_records:
-        if ("group_size" in record and "table_capacity" in record and "dining_duration" in record and record["group_size"] is not None and record["table_capacity"] is not None and record["dining_duration"] is not None):
-            group_size = float(record["group_size"])
-            table_capacity = float(record["table_capacity"])
-            dining_duration = float(record["dining_duration"])
 
-            total_used_seat_time += group_size * dining_duration
-            total_available_seat_time += table_capacity * dining_duration
-
-    if total_available_seat_time == 0:
+def table_utilization(
+    seating_records: List[Dict[str, Any]],
+    total_seats: int,
+    end_time: Optional[int] = None,
+) -> float:
+    if total_seats <= 0:
         return 0.0
 
-    return total_used_seat_time / total_available_seat_time
+    if end_time is None:
+        end_time = simulation_end_time(seating_records)
+
+    if end_time <= 0:
+        return 0.0
+
+    used_seat_minutes = 0
+    for record in seating_records:
+        if (
+            record.get("group_size") is not None
+            and record.get("dining_duration") is not None
+        ):
+            used_seat_minutes += int(record["group_size"]) * int(record["dining_duration"])
+
+    return (used_seat_minutes / float(total_seats * end_time)) * 100.0
+
+
+def service_level_within(
+    seating_records: List[Dict[str, Any]],
+    threshold_minutes: int = 15,
+) -> float:
+    served = groups_served(seating_records)
+    if served == 0:
+        return 0.0
+
+    within_threshold = 0
+    for record in seating_records:
+        wait_time = record.get("wait_time")
+        if wait_time is not None and int(wait_time) <= threshold_minutes:
+            within_threshold += 1
+
+    return (within_threshold / float(served)) * 100.0
 
 
 def average_waiting_time_by_group_size(seating_records: List[Dict[str, Any]]) -> Dict[int, float]:
-    total=  {}
-    # int, float
-    count = {}
-    # int, int
+    totals: Dict[int, float] = {}
+    counts: Dict[int, int] = {}
+
     for record in seating_records:
-        if ("group_size" in record and "wait_time" in record and record["group_size"] is not None and record["wait_time"] is not None):
-            group_size = int(record["group_size"])
-            wait_time = float(record["wait_time"])
+        if record.get("group_size") is None or record.get("wait_time") is None:
+            continue
 
-            if (group_size not in total):
-                total[group_size] = 0.0
-                count[group_size] = 0
+        group_size = int(record["group_size"])
+        totals[group_size] = totals.get(group_size, 0.0) + float(record["wait_time"])
+        counts[group_size] = counts.get(group_size, 0) + 1
 
-            total[group_size] += wait_time
-            count[group_size] += 1
-
-    result = {}
-    # int, float 
-
-    for group_size in total:
-        if count[group_size] > 0:
-            result[group_size] = total[group_size] / count[group_size]
-
-    # A dictionary mapping group size to average waiting time.
-    return result 
+    return {
+        group_size: totals[group_size] / counts[group_size]
+        for group_size in totals
+        if counts[group_size] > 0
+    }
 
 
 def fairness_gap_in_average_waiting_time(seating_records: List[Dict[str, Any]]) -> float:
-    """
-    Formula: max(avg waiting time by group size) -min(avg waiting time by group size)
-    """
     avg_by_group_size = average_waiting_time_by_group_size(seating_records)
-
-    if len(avg_by_group_size) == 0:
+    if not avg_by_group_size:
         return 0.0
-
-    min_avg = None
-    max_avg = None
-
-    for group_size in avg_by_group_size:
-        avg_wait = avg_by_group_size[group_size]
-
-        if (min_avg is None or avg_wait < min_avg):
-            min_avg = avg_wait
-
-        if (max_avg is None or avg_wait > max_avg):
-            max_avg = avg_wait
-
-    if min_avg is None or max_avg is None:
-        return 0.0
-
-    return max_avg - min_avg
-
-
-def main():
-    return 
+    return max(avg_by_group_size.values()) - min(avg_by_group_size.values())

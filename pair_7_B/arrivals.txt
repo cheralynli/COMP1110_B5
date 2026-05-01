@@ -1,0 +1,11 @@
+# Pair 7 arrivals: KBBQ dinner with longer stays and mixed medium-large groups
+ARRIVAL,0,2,55
+ARRIVAL,6,4,65
+ARRIVAL,12,5,72
+ARRIVAL,18,3,60
+ARRIVAL,24,6,78
+ARRIVAL,31,4,66
+ARRIVAL,38,2,54
+ARRIVAL,45,5,74
+ARRIVAL,53,4,67
+ARRIVAL,61,6,80

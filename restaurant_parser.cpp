@@ -58,6 +58,7 @@ void InputParser::loadConfig(const std::string& configPath) {
     }
 
     tables.clear();
+    queueRules.clear();
 
     std::string rawLine;
     while (std::getline(input, rawLine)) {
@@ -80,6 +81,14 @@ void InputParser::loadConfig(const std::string& configPath) {
             tables.push_back(Table{tableId, capacity, true, 0});
             continue;
         }
+
+        if (fields[0] == "QUEUE" && fields.size() >= 3) {
+            queueRules.push_back(QueueRule{std::stoi(fields[1]), std::stoi(fields[2])});
+        }
+    }
+
+    if (queueRules.empty()) {
+        queueRules.push_back(QueueRule{1, 99});
     }
 }
 
@@ -134,4 +143,8 @@ const std::vector<Table>& InputParser::getTables() const {
 
 const std::vector<Group>& InputParser::getArrivals() const {
     return arrivals;
+}
+
+const std::vector<QueueRule>& InputParser::getQueueRules() const {
+    return queueRules;
 }
