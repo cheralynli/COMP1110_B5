@@ -1,7 +1,7 @@
 CXX := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -pedantic
 TARGET := restaurant_sim
-SOURCES := main.cpp simulation.cpp restaurant_parser.cpp
+SOURCES := main.cpp simulation.cpp fcfs_simulation.cpp size_queue_simulation.cpp restaurant_parser.cpp
 OBJECTS := $(SOURCES:.cpp=.o)
 
 FCFS_TARGET := restaurant_fcfs
@@ -25,7 +25,7 @@ $(FCFS_TARGET): $(FCFS_OBJECTS)
 $(SIZE_TARGET): $(SIZE_OBJECTS)
 	$(CXX) $(CXXFLAGS) $(SIZE_OBJECTS) -o $(SIZE_TARGET)
 
-main.o: main.cpp simulation.h restaurant_parser.h
+main.o: main.cpp simulation.h fcfs_simulation.h size_queue_simulation.h restaurant_parser.h
 	$(CXX) $(CXXFLAGS) -c main.cpp
 
 simulation.o: simulation.cpp simulation.h restaurant_parser.h

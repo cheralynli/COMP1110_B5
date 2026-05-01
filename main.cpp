@@ -1,6 +1,8 @@
 #include "default_scenario_loader.h"
+#include "fcfs_simulation.h"
 #include "restaurant_parser.h"
 #include "simulation.h"
+#include "size_queue_simulation.h"
 
 #include <algorithm>
 #include <cctype>
@@ -218,6 +220,30 @@ R"(    (\
     }
 }
 
+int promptForSimulationChoice() {
+    while (true) {
+        clearScreen();
+        std::cout << "\nChoose simulation\n";
+        std::cout << "  1. WokTheWay simulation\n";
+        std::cout << "  2. FCFS simulation\n";
+        std::cout << "  3. Size queue simulation\n";
+        std::cout << "  0. Back\n";
+        std::cout << "\nChoose a simulation: ";
+
+        int choice = -1;
+        if (std::cin >> choice) {
+            clearInputState();
+            if (choice >= 0 && choice <= 3) {
+                return choice;
+            }
+        } else {
+            clearInputState();
+        }
+
+        std::cout << "Invalid choice. Please enter a number from the menu.\n";
+    }
+}
+
 int promptForRestaurantChoice() {
     while (true) {
         clearScreen();
@@ -229,7 +255,7 @@ int promptForRestaurantChoice() {
         }
         std::cout << "  " << customScenarioChoice() << ". Custom file paths\n";
         std::cout << "  " << runAllScenariosChoice() << ". Run all built-in scenarios\n";
-        std::cout << "  0. Exit\n";
+        std::cout << "  0. Back\n";
         std::cout << "\nChoose a scenario group: ";
 
         int choice = -1;
@@ -325,37 +351,56 @@ ScenarioOption promptForCustomScenario() {
     return option;
 }
 
-std::string buildLogPath(const std::string& scenarioName) {
-    return "output/seating_log_" + scenarioName + ".csv";
-}
-
 bool runScenarioWithSettings(
     const ScenarioOption& scenario,
+    int simulationChoice,
     double fairnessWeight,
     int lookAheadWindow,
     bool clearBeforeRun,
     bool pauseAfterRun
 );
 
-bool runScenario(const ScenarioOption& scenario) {
-    const double fairnessWeight = promptForDouble("Fairness weight", 1.0);
-    const int lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+bool runScenario(const ScenarioOption& scenario, int simulationChoice) {
+    double fairnessWeight = 1.0;
+    int lookAheadWindow = 15;
 
-    return runScenarioWithSettings(scenario, fairnessWeight, lookAheadWindow, true, true);
+    if (simulationChoice == 1) {
+        fairnessWeight = promptForDouble("Fairness weight", 1.0);
+        lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+    }
+
+    return runScenarioWithSettings(scenario, simulationChoice, fairnessWeight, lookAheadWindow, true, true);
 }
 
-void runAllScenarios() {
-    const double fairnessWeight = promptForDouble("Fairness weight", 1.0);
-    const int lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+void runAllScenarios(int simulationChoice) {
+    double fairnessWeight = 1.0;
+    int lookAheadWindow = 15;
+
+    if (simulationChoice == 1) {
+        fairnessWeight = promptForDouble("Fairness weight", 1.0);
+        lookAheadWindow = promptForInt("Look-ahead window (minutes)", 15);
+    }
 
     clearScreen();
-    std::cout << "\nRunning all built-in heuristic scenarios\n";
-    std::cout << "Fairness weight: " << fairnessWeight << '\n';
-    std::cout << "Look-ahead window: " << lookAheadWindow << " minutes\n\n";
+    std::cout << "\nRunning all built-in ";
+    if (simulationChoice == 2) {
+        std::cout << "FCFS";
+    } else if (simulationChoice == 3) {
+        std::cout << "size queue";
+    } else {
+        std::cout << "main heuristic";
+    }
+    std::cout << " scenarios\n";
+
+    if (simulationChoice == 1) {
+        std::cout << "Fairness weight: " << fairnessWeight << '\n';
+        std::cout << "Look-ahead window: " << lookAheadWindow << " minutes\n";
+    }
+    std::cout << '\n';
 
     int successCount = 0;
     for (const ScenarioOption& scenario : kScenarios) {
-        if (runScenarioWithSettings(scenario, fairnessWeight, lookAheadWindow, false, false)) {
+        if (runScenarioWithSettings(scenario, simulationChoice, fairnessWeight, lookAheadWindow, false, false)) {
             successCount++;
         }
         std::cout << '\n';
@@ -371,6 +416,7 @@ void runAllScenarios() {
 
 bool runScenarioWithSettings(
     const ScenarioOption& scenario,
+    int simulationChoice,
     double fairnessWeight,
     int lookAheadWindow,
     bool clearBeforeRun,
@@ -393,22 +439,48 @@ bool runScenarioWithSettings(
         return false;
     }
 
-    WokThisWaySim simulation(tables, fairnessWeight, lookAheadWindow);
-    const std::string logPath = buildLogPath(scenario.name);
+    std::string logPath;
+    if (simulationChoice == 2) {
+        logPath = "output/fcfs_seating_log_" + scenario.name + ".csv";
+    } else if (simulationChoice == 3) {
+        logPath = "output/size_seating_log_" + scenario.name + ".csv";
+    } else {
+        logPath = "output/seating_log_" + scenario.name + ".csv";
+    }
+
     std::filesystem::create_directories("output");
-    simulation.setSeatingLogPath(logPath);
-    simulation.precomputeHourlyRates(arrivals);
 
     if (clearBeforeRun) {
         clearScreen();
     }
 
-    std::cout << "\nRunning " << scenario.name << '\n';
+    std::cout << "\nRunning ";
+    if (simulationChoice == 2) {
+        std::cout << "FCFS simulation";
+    } else if (simulationChoice == 3) {
+        std::cout << "size queue simulation";
+    } else {
+        std::cout << "main heuristic simulation";
+    }
+    std::cout << " for " << scenario.name << '\n';
     std::cout << "Config:   " << scenario.configPath << '\n';
     std::cout << "Arrivals: " << scenario.arrivalsPath << '\n';
     std::cout << "Log file: " << logPath << "\n\n";
 
-    simulation.runSimulation(arrivals);
+    if (simulationChoice == 2) {
+        FCFSSimulation simulation(tables);
+        simulation.setSeatingLogPath(logPath);
+        simulation.runSimulation(arrivals);
+    } else if (simulationChoice == 3) {
+        SizeQueueSimulation simulation(tables);
+        simulation.setSeatingLogPath(logPath);
+        simulation.runSimulation(arrivals);
+    } else {
+        WokThisWaySim simulation(tables, fairnessWeight, lookAheadWindow);
+        simulation.setSeatingLogPath(logPath);
+        simulation.precomputeHourlyRates(arrivals);
+        simulation.runSimulation(arrivals);
+    }
 
     std::cout << "\nSimulation complete. Seating log saved to " << logPath << ".\n";
     if (pauseAfterRun) {
@@ -431,6 +503,11 @@ int main() {
             return 0;
         }
 
+        const int simulationChoice = promptForSimulationChoice();
+        if (simulationChoice == 0) {
+            continue;
+        }
+
         const int restaurantChoice = promptForRestaurantChoice();
         if (restaurantChoice == 0) {
             continue;
@@ -440,7 +517,7 @@ int main() {
         if (restaurantChoice == customScenarioChoice()) {
             selectedScenario = promptForCustomScenario();
         } else if (restaurantChoice == runAllScenariosChoice()) {
-            runAllScenarios();
+            runAllScenarios(simulationChoice);
             continue;
         } else {
             const RestaurantOption& restaurant = kRestaurants[restaurantChoice - 1];
@@ -454,6 +531,6 @@ int main() {
             selectedScenario = *scenariosForRestaurant[static_cast<std::size_t>(scenarioChoice - 1)];
         }
 
-        runScenario(selectedScenario);
+        runScenario(selectedScenario, simulationChoice);
     }
 }
