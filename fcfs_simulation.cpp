@@ -108,40 +108,33 @@ void FCFSSimulation::appendSeatingRecord(const Group& group, const Table& table)
 }
 
 void FCFSSimulation::processSeating(int currentTime) {
-    bool seatedSomeone = true;
-    while (seatedSomeone) {
-        seatedSomeone = false;
-
-        for (std::size_t queueIndex = 0; queueIndex < queue.size(); ++queueIndex) {
-            Table* selectedTable = nullptr;
-            for (Table& table : tables) {
-                if (!table.isFree || table.capacity < queue[queueIndex].size) {
-                    continue;
-                }
-
-                selectedTable = &table;
-                break;
-            }
-
-            if (selectedTable == nullptr) {
+    while (!queue.empty()) {
+        Table* selectedTable = nullptr;
+        for (Table& table : tables) {
+            if (!table.isFree || table.capacity < queue.front().size) {
                 continue;
             }
 
-            Group group = queue[queueIndex];
-            group.seatingTime = currentTime;
-            selectedTable->isFree = false;
-            selectedTable->availableAt = currentTime + group.diningDuration;
-            totalSeatMinutesUsed += group.size * group.diningDuration;
-            appendSeatingRecord(group, *selectedTable);
-
-            std::cout << "Time " << std::setw(3) << currentTime
-                      << " | Group " << std::setw(2) << group.id
-                      << " (Size " << group.size << ") @ Table " << selectedTable->id << "\n";
-
-            queue.erase(queue.begin() + static_cast<std::ptrdiff_t>(queueIndex));
-            seatedSomeone = true;
+            selectedTable = &table;
             break;
         }
+
+        if (selectedTable == nullptr) {
+            break;
+        }
+
+        Group group = queue.front();
+        group.seatingTime = currentTime;
+        selectedTable->isFree = false;
+        selectedTable->availableAt = currentTime + group.diningDuration;
+        totalSeatMinutesUsed += group.size * group.diningDuration;
+        appendSeatingRecord(group, *selectedTable);
+
+        std::cout << "Time " << std::setw(3) << currentTime
+                  << " | Group " << std::setw(2) << group.id
+                  << " (Size " << group.size << ") @ Table " << selectedTable->id << "\n";
+
+        queue.erase(queue.begin());
     }
 }
 
