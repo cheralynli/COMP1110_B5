@@ -1,0 +1,11 @@
+# Restaurant table configuration
+TABLE, 2, 1
+TABLE, 2, 2
+TABLE, 4, 3
+TABLE, 4, 4
+TABLE, 4, 5
+TABLE, 6, 6
+TABLE, 6, 7
+TABLE, 8, 8
+TABLE, 8, 9
+TABLE, 8, 10

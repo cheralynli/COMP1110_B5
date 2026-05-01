@@ -1,3 +1,4 @@
+#include "default_scenario_loader.h"
 #include "restaurant_parser.h"
 #include "simulation.h"
 
@@ -19,77 +20,8 @@
 
 namespace {
 
-struct ScenarioOption {
-    std::string name;
-    std::string restaurantType;
-    std::string demandLevel;
-    std::string description;
-    std::string configPath;
-    std::string arrivalsPath;
-};
-
-struct RestaurantOption {
-    std::string key;
-    std::string label;
-    std::string description;
-};
-
-const std::vector<RestaurantOption> kRestaurants = {
-    {"fastfood", "Fast Food", "Small groups, quick turnover, short dining durations"},
-    {"cafe", "Cafe", "Small-to-medium groups with moderate dining durations"},
-    {"family", "Family Dining", "Larger groups with longer stays and mixed table sizes"},
-};
-
-const std::vector<ScenarioOption> kScenarios = {
-    {
-        "fastfood_non_peak",
-        "fastfood",
-        "non_peak",
-        "Fast food with light traffic and quick turnover",
-        "input/fastfood_non_peak/config.txt",
-        "input/fastfood_non_peak/arrivals.txt",
-    },
-    {
-        "fastfood_peak",
-        "fastfood",
-        "peak",
-        "Fast food rush with dense small-party arrivals",
-        "input/fastfood_peak/config.txt",
-        "input/fastfood_peak/arrivals.txt",
-    },
-    {
-        "cafe_non_peak",
-        "cafe",
-        "non_peak",
-        "Cafe with lighter traffic and moderate dining durations",
-        "input/cafe_non_peak/config.txt",
-        "input/cafe_non_peak/arrivals.txt",
-    },
-    {
-        "cafe_peak",
-        "cafe",
-        "peak",
-        "Cafe rush with more queue pressure",
-        "input/cafe_peak/config.txt",
-        "input/cafe_peak/arrivals.txt",
-    },
-    {
-        "family_non_peak",
-        "family",
-        "non_peak",
-        "Family dining with moderate traffic and larger groups",
-        "input/family_non_peak/config.txt",
-        "input/family_non_peak/arrivals.txt",
-    },
-    {
-        "family_peak",
-        "family",
-        "peak",
-        "Family dining rush with many medium and large groups",
-        "input/family_peak/config.txt",
-        "input/family_peak/arrivals.txt",
-    },
-};
+const std::vector<ScenarioOption> kScenarios = loadDefaultScenarios();
+const std::vector<RestaurantOption> kRestaurants = buildRestaurantOptions(kScenarios);
 
 int customScenarioChoice() {
     return static_cast<int>(kRestaurants.size()) + 1;
@@ -289,7 +221,7 @@ R"(    (\
 int promptForRestaurantChoice() {
     while (true) {
         clearScreen();
-        std::cout << "\nChoose a restaurant type\n";
+        std::cout << "\nChoose a scenario group\n";
         for (std::size_t i = 0; i < kRestaurants.size(); ++i) {
             std::cout << "  " << (i + 1) << ". "
                       << std::left << std::setw(14) << kRestaurants[i].label
@@ -298,7 +230,7 @@ int promptForRestaurantChoice() {
         std::cout << "  " << customScenarioChoice() << ". Custom file paths\n";
         std::cout << "  " << runAllScenariosChoice() << ". Run all built-in scenarios\n";
         std::cout << "  0. Exit\n";
-        std::cout << "\nChoose a restaurant: ";
+        std::cout << "\nChoose a scenario group: ";
 
         int choice = -1;
         if (std::cin >> choice) {
@@ -314,26 +246,30 @@ int promptForRestaurantChoice() {
     }
 }
 
-int promptForDemandChoice(const RestaurantOption& restaurant) {
+int promptForScenarioChoice(
+    const RestaurantOption& restaurant,
+    const std::vector<const ScenarioOption*>& scenarios
+) {
     while (true) {
         clearScreen();
-        std::cout << "\nChoose demand level for " << restaurant.label << '\n';
-        std::cout << "  1. Non-peak\n";
-        std::cout << "  2. Peak\n";
+        std::cout << "\nChoose scenario for " << restaurant.label << '\n';
+        for (std::size_t i = 0; i < scenarios.size(); ++i) {
+            std::cout << "  " << (i + 1) << ". " << scenarios[i]->description << '\n';
+        }
         std::cout << "  0. Back\n";
-        std::cout << "\nChoose demand level: ";
+        std::cout << "\nChoose a scenario: ";
 
         int choice = -1;
         if (std::cin >> choice) {
             clearInputState();
-            if (choice >= 0 && choice <= 2) {
+            if (choice >= 0 && choice <= static_cast<int>(scenarios.size())) {
                 return choice;
             }
         } else {
             clearInputState();
         }
 
-        std::cout << "Invalid choice. Please enter 0, 1, or 2.\n";
+        std::cout << "Invalid choice. Please enter a number from the menu.\n";
     }
 }
 
@@ -387,16 +323,6 @@ ScenarioOption promptForCustomScenario() {
     std::getline(std::cin, option.arrivalsPath);
 
     return option;
-}
-
-const ScenarioOption* findScenario(const std::string& restaurantType, const std::string& demandLevel) {
-    for (const ScenarioOption& scenario : kScenarios) {
-        if (scenario.restaurantType == restaurantType && scenario.demandLevel == demandLevel) {
-            return &scenario;
-        }
-    }
-
-    return nullptr;
 }
 
 std::string buildLogPath(const std::string& scenarioName) {
@@ -518,19 +444,14 @@ int main() {
             continue;
         } else {
             const RestaurantOption& restaurant = kRestaurants[restaurantChoice - 1];
-            const int demandChoice = promptForDemandChoice(restaurant);
-            if (demandChoice == 0) {
+            const std::vector<const ScenarioOption*> scenariosForRestaurant =
+                findScenariosForRestaurant(kScenarios, restaurant.key);
+            const int scenarioChoice = promptForScenarioChoice(restaurant, scenariosForRestaurant);
+            if (scenarioChoice == 0) {
                 continue;
             }
 
-            const std::string demandLevel = (demandChoice == 1) ? "non_peak" : "peak";
-            const ScenarioOption* scenario = findScenario(restaurant.key, demandLevel);
-            if (scenario == nullptr) {
-                std::cout << "Could not find a scenario for that selection.\n";
-                continue;
-            }
-
-            selectedScenario = *scenario;
+            selectedScenario = *scenariosForRestaurant[static_cast<std::size_t>(scenarioChoice - 1)];
         }
 
         runScenario(selectedScenario);
