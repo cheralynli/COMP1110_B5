@@ -45,15 +45,16 @@ def _bar_chart(labels: List[str], values: List[float], title: str, y_label: str,
 	plt.close()
 
 
-def _comparison_chart(labels: List[str], series_a: List[float], series_b: List[float],
-					title: str, y_label: str, output_path: str,
-					label_a: str, label_b: str) -> None:
-	bar_width = 0.4
+def _comparison_chart_three(labels: List[str], series_a: List[float], series_b: List[float],
+						series_c: List[float], title: str, y_label: str, output_path: str,
+						label_a: str, label_b: str, label_c: str) -> None:
+	bar_width = 0.25
 	indices = list(range(len(labels)))
 
 	plt.figure(figsize=(12, 5))
-	plt.bar([i - bar_width / 2 for i in indices], series_a, width=bar_width, label=label_a)
-	plt.bar([i + bar_width / 2 for i in indices], series_b, width=bar_width, label=label_b)
+	plt.bar([i - bar_width for i in indices], series_a, width=bar_width, label=label_a)
+	plt.bar(indices, series_b, width=bar_width, label=label_b)
+	plt.bar([i + bar_width for i in indices], series_c, width=bar_width, label=label_c)
 	plt.title(title)
 	plt.ylabel(y_label)
 	plt.xticks(indices, labels, rotation=30, ha="right")
@@ -151,7 +152,7 @@ def visualize_ourAlgo_metrics():
 	rows = _read_metrics_summary(metrics_path)
 	labels = [row["source_file"].replace("seating_log_", "").replace(".csv", "") for row in rows]
 
-	output_dir = os.path.join(output_root, "charts")
+	output_dir = os.path.join(output_root, "ourAlgo_charts")
 	os.makedirs(output_dir, exist_ok=True)
 
 	_bar_chart(
@@ -226,18 +227,99 @@ def visualize_ourAlgo_metrics():
 	)
 
 
-def _scenario_key(source_file: str, prefix: str) -> str:
-	return source_file.replace(prefix, "").replace(".csv", "")
+def visualize_size_metrics():
+	base_dir = os.path.dirname(os.path.abspath(__file__))
+	output_root = os.path.join(base_dir, "output")
+	metrics_path = os.path.join(output_root, "size_metrics_summary.csv")
+
+	rows = _read_metrics_summary(metrics_path)
+	labels = [row["source_file"].replace("size_seating_log_", "").replace(".csv", "") for row in rows]
+
+	output_dir = os.path.join(output_root, "size_charts")
+	os.makedirs(output_dir, exist_ok=True)
+
+	_bar_chart(
+		labels,
+		[row["avg_wait"] for row in rows],
+		"Size Average Wait Time",
+		"Minutes",
+		os.path.join(output_dir, "avg_wait.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["max_wait"] for row in rows],
+		"Size Maximum Wait Time",
+		"Minutes",
+		os.path.join(output_dir, "max_wait.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["median_wait"] for row in rows],
+		"Size Median Wait Time",
+		"Minutes",
+		os.path.join(output_dir, "median_wait.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["seat_util"] for row in rows],
+		"Size Seat Utilization",
+		"Utilization (0-1)",
+		os.path.join(output_dir, "seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["true_seat_util"] for row in rows],
+		"Size True Seat Utilization",
+		"Utilization (0-1)",
+		os.path.join(output_dir, "true_seat_util.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["service_level_15"] for row in rows],
+		"Size Service Level (<= 15 min)",
+		"Share (0-1)",
+		os.path.join(output_dir, "service_level_15.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["max_queue_length"] for row in rows],
+		"Size Max Queue Length",
+		"Groups",
+		os.path.join(output_dir, "max_queue_length.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["avg_queue_length"] for row in rows],
+		"Size Average Queue Length",
+		"Groups",
+		os.path.join(output_dir, "avg_queue_length.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["fairness_gap"] for row in rows],
+		"Size Fairness Gap in Average Waiting Time",
+		"Minutes",
+		os.path.join(output_dir, "fairness_gap.png"),
+	)
+	_bar_chart(
+		labels,
+		[row["groups_served"] for row in rows],
+		"Size Groups Served",
+		"Count",
+		os.path.join(output_dir, "groups_served.png"),
+	)
 
 
-def visualize_comparison_metrics():
+def visualize_combined_metrics():
 	base_dir = os.path.dirname(os.path.abspath(__file__))
 	output_root = os.path.join(base_dir, "output")
 	fcfs_path = os.path.join(output_root, "fcfs_metrics_summary.csv")
 	ours_path = os.path.join(output_root, "metrics_summary.csv")
+	size_path = os.path.join(output_root, "size_metrics_summary.csv")
 
 	fcfs_rows = _read_metrics_summary(fcfs_path)
 	ours_rows = _read_metrics_summary(ours_path)
+	size_rows = _read_metrics_summary(size_path)
 
 	fcfs_by_key = {
 		_scenario_key(row["source_file"], "fcfs_seating_log_"): row for row in fcfs_rows
@@ -245,9 +327,12 @@ def visualize_comparison_metrics():
 	ours_by_key = {
 		_scenario_key(row["source_file"], "seating_log_"): row for row in ours_rows
 	}
+	size_by_key = {
+		_scenario_key(row["source_file"], "size_seating_log_"): row for row in size_rows
+	}
 
-	labels = sorted(set(fcfs_by_key) & set(ours_by_key))
-	output_dir = os.path.join(output_root, "combined_charts")
+	labels = sorted(set(fcfs_by_key) & set(ours_by_key) & set(size_by_key))
+	output_dir = os.path.join(output_root, "charts")
 	os.makedirs(output_dir, exist_ok=True)
 
 	metrics = [
@@ -266,17 +351,23 @@ def visualize_comparison_metrics():
 	for key, title, y_label in metrics:
 		series_fcfs = [fcfs_by_key[label][key] for label in labels]
 		series_ours = [ours_by_key[label][key] for label in labels]
-		file_name = f"{key}_comparison.png"
-		_comparison_chart(
+		series_size = [size_by_key[label][key] for label in labels]
+		_comparison_chart_three(
 			labels,
 			series_fcfs,
 			series_ours,
-			f"FCFS vs Our Algo: {title}",
+			series_size,
+			f"FCFS vs Our Algo vs Size: {title}",
 			y_label,
-			os.path.join(output_dir, file_name),
+			os.path.join(output_dir, f"{key}.png"),
 			"FCFS",
 			"Our Algo",
+			"Size",
 		)
+
+
+def _scenario_key(source_file: str, prefix: str) -> str:
+	return source_file.replace(prefix, "").replace(".csv", "")
 
 
 def _split_scenario_key(key: str) -> Dict[str, str]:
@@ -299,9 +390,11 @@ def visualize_scenario_comparison_metrics():
 	output_root = os.path.join(base_dir, "output")
 	fcfs_path = os.path.join(output_root, "fcfs_metrics_summary.csv")
 	ours_path = os.path.join(output_root, "metrics_summary.csv")
+	size_path = os.path.join(output_root, "size_metrics_summary.csv")
 
 	fcfs_rows = _read_metrics_summary(fcfs_path)
 	ours_rows = _read_metrics_summary(ours_path)
+	size_rows = _read_metrics_summary(size_path)
 
 	fcfs_by_key = {
 		_scenario_key(row["source_file"], "fcfs_seating_log_"): row for row in fcfs_rows
@@ -309,8 +402,11 @@ def visualize_scenario_comparison_metrics():
 	ours_by_key = {
 		_scenario_key(row["source_file"], "seating_log_"): row for row in ours_rows
 	}
+	size_by_key = {
+		_scenario_key(row["source_file"], "size_seating_log_"): row for row in size_rows
+	}
 
-	available_keys = sorted(set(fcfs_by_key) & set(ours_by_key))
+	available_keys = sorted(set(fcfs_by_key) & set(ours_by_key) & set(size_by_key))
 	by_scenario: Dict[str, List[str]] = {}
 	for key in available_keys:
 		split = _split_scenario_key(key)
@@ -343,27 +439,32 @@ def visualize_scenario_comparison_metrics():
 		for key, title, y_label in metrics:
 			series_fcfs = []
 			series_ours = []
+			series_size = []
 			for setting in settings_sorted:
 				combined_key = f"{scenario}_{setting}" if setting else scenario
 				series_fcfs.append(fcfs_by_key[combined_key][key])
 				series_ours.append(ours_by_key[combined_key][key])
+				series_size.append(size_by_key[combined_key][key])
 
 			file_name = f"{key}_comparison.png"
-			_comparison_chart(
+			_comparison_chart_three(
 				labels,
 				series_fcfs,
 				series_ours,
-				f"{scenario}: FCFS vs Our Algo - {title}",
+				series_size,
+				f"{scenario}: FCFS vs Our Algo vs Size - {title}",
 				y_label,
 				os.path.join(comparison_dir, file_name),
 				"FCFS",
 				"Our Algo",
+				"Size",
 			)
 
 def main():
 	visualize_fcfs_metrics()
 	visualize_ourAlgo_metrics()
-	visualize_comparison_metrics()
+	visualize_size_metrics()
+	visualize_combined_metrics()
 	visualize_scenario_comparison_metrics()
 
 

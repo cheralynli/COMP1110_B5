@@ -317,6 +317,11 @@ def find_fcfs_csv_files(search_dir: str) -> List[str]:
     pattern = os.path.join(search_dir, "fcfs_seating_log_*.csv")
     return sorted(glob.glob(pattern))
 
+
+def find_size_csv_files(search_dir: str) -> List[str]:
+    pattern = os.path.join(search_dir, "size_seating_log_*.csv")
+    return sorted(glob.glob(pattern))
+
 def compute_metrics(seating_records: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "avg_wait": avg_wait_time(seating_records),
@@ -385,9 +390,27 @@ def run_metrics_computation_ourAlgo():
     output_path = os.path.join(output_dir, "metrics_summary.csv")
     write_summary_csv(output_path, summary_rows)
 
+
+def run_metrics_computation_size():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(base_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    seating_files = find_size_csv_files(output_dir)
+
+    summary_rows: List[Dict[str, Any]] = []
+    for file_path in seating_files:
+        records = read_seating_csv(file_path)
+        metrics = compute_metrics(records)
+        metrics["source_file"] = os.path.basename(file_path)
+        summary_rows.append(metrics)
+
+    output_path = os.path.join(output_dir, "size_metrics_summary.csv")
+    write_summary_csv(output_path, summary_rows)
+
 def main():
     run_metrics_computation_fcfs()
     run_metrics_computation_ourAlgo()
+    run_metrics_computation_size()
 
 
 if __name__ == "__main__":
