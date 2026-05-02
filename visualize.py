@@ -63,6 +63,12 @@ def _comparison_chart_three(labels: List[str], series_a: List[float], series_b: 
 	plt.savefig(output_path)
 	plt.close()
 
+
+def _charts_dir(output_root: str, folder_name: str) -> str:
+	output_dir = os.path.join(output_root, folder_name)
+	os.makedirs(output_dir, exist_ok=True)
+	return output_dir
+
 def visualize_fcfs_metrics():
 	base_dir = os.path.dirname(os.path.abspath(__file__))
 	output_root = os.path.join(base_dir, "output")
@@ -70,8 +76,7 @@ def visualize_fcfs_metrics():
 	rows = _read_metrics_summary(metrics_path)
 	labels = [row["source_file"].replace("fcfs_seating_log_", "").replace(".csv", "") for row in rows]
 	
-	output_dir = os.path.join(output_root, "fcfs_charts")
-	os.makedirs(output_dir, exist_ok=True)
+	output_dir = _charts_dir(output_root, "fcfs_charts")
 
 	_bar_chart(
         labels,
@@ -152,8 +157,7 @@ def visualize_ourAlgo_metrics():
 	rows = _read_metrics_summary(metrics_path)
 	labels = [row["source_file"].replace("seating_log_", "").replace(".csv", "") for row in rows]
 
-	output_dir = os.path.join(output_root, "ourAlgo_charts")
-	os.makedirs(output_dir, exist_ok=True)
+	output_dir = _charts_dir(output_root, "ourAlgo_charts")
 
 	_bar_chart(
 		labels,
@@ -235,8 +239,7 @@ def visualize_size_metrics():
 	rows = _read_metrics_summary(metrics_path)
 	labels = [row["source_file"].replace("size_seating_log_", "").replace(".csv", "") for row in rows]
 
-	output_dir = os.path.join(output_root, "size_charts")
-	os.makedirs(output_dir, exist_ok=True)
+	output_dir = _charts_dir(output_root, "size_charts")
 
 	_bar_chart(
 		labels,
@@ -332,8 +335,7 @@ def visualize_combined_metrics():
 	}
 
 	labels = sorted(set(fcfs_by_key) & set(ours_by_key) & set(size_by_key))
-	output_dir = os.path.join(output_root, "charts")
-	os.makedirs(output_dir, exist_ok=True)
+	output_dir = _charts_dir(output_root, "charts")
 
 	metrics = [
 		("avg_wait", "Average Wait Time", "Minutes"),
@@ -371,18 +373,27 @@ def _scenario_key(source_file: str, prefix: str) -> str:
 
 
 def _split_scenario_key(key: str) -> Dict[str, str]:
-	parts = key.split("_", 1)
-	if len(parts) == 1:
-		return {"scenario": parts[0], "setting": ""}
-	return {"scenario": parts[0], "setting": parts[1]}
+	if key.endswith("_non_peak"):
+		return {"scenario": key[:-9], "setting": "non_peak"}
+	if key.endswith("_peak"):
+		return {"scenario": key[:-5], "setting": "peak"}
+	if "_" not in key:
+		return {"scenario": key, "setting": ""}
+
+	scenario, setting = key.rsplit("_", 1)
+	return {"scenario": scenario, "setting": setting}
 
 
-def _setting_sort_key(setting: str) -> int:
+def _setting_sort_key(setting: str):
+	if setting == "A":
+		return (0, setting)
+	if setting == "B":
+		return (1, setting)
 	if setting == "non_peak":
-		return 0
+		return (0, setting)
 	if setting == "peak":
-		return 1
-	return 2
+		return (1, setting)
+	return (2, setting)
 
 
 def visualize_scenario_comparison_metrics():
@@ -427,7 +438,7 @@ def visualize_scenario_comparison_metrics():
 		("groups_served", "Groups Served", "Count"),
 	]
 
-	root_dir = os.path.join(output_root, "scenario_comparison_charts")
+	root_dir = _charts_dir(output_root, "scenario_comparison_charts")
 	os.makedirs(root_dir, exist_ok=True)
 
 	for scenario, settings in by_scenario.items():

@@ -4,6 +4,7 @@ from typing import Dict, List
 
 
 BASE_DIR = Path(__file__).resolve().parent
+INPUT_DIR = BASE_DIR / "input" / "default"
 
 
 @dataclass(frozen=True)
@@ -32,8 +33,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="table size mix",
         variation_summary="Balanced 2, 4, and 6-seat layout",
         description="Family dinner service with a balanced mix of 2-seat, 4-seat, and 6-seat tables.",
-        config_path=BASE_DIR / "pair_3_A" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_3_A" / "arrivals.txt",
+        config_path=INPUT_DIR / "family_dinner_A" / "config.txt",
+        arrivals_path=INPUT_DIR / "family_dinner_A" / "arrivals.txt",
     ),
     Scenario(
         pair_id="family_dinner",
@@ -43,8 +44,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="table size mix",
         variation_summary="Large-table-heavy layout",
         description="Family dinner service with more 6-seat tables and fewer small-table options.",
-        config_path=BASE_DIR / "pair_3_B" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_3_B" / "arrivals.txt",
+        config_path=INPUT_DIR / "family_dinner_B" / "config.txt",
+        arrivals_path=INPUT_DIR / "family_dinner_B" / "arrivals.txt",
     ),
     Scenario(
         pair_id="cafe_lunch",
@@ -54,8 +55,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="table size mix",
         variation_summary="Mostly 2-seat tables",
         description="Cafe lunch rush with mostly 2-seat tables and only one 4-seat table.",
-        config_path=BASE_DIR / "pair_4_A" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_4_A" / "arrivals.txt",
+        config_path=INPUT_DIR / "cafe_lunch_A" / "config.txt",
+        arrivals_path=INPUT_DIR / "cafe_lunch_A" / "arrivals.txt",
     ),
     Scenario(
         pair_id="cafe_lunch",
@@ -65,8 +66,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="table size mix",
         variation_summary="Mixed 2-seat and 4-seat layout",
         description="Cafe lunch rush with a more flexible mix of 2-seat and 4-seat tables.",
-        config_path=BASE_DIR / "pair_4_B" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_4_B" / "arrivals.txt",
+        config_path=INPUT_DIR / "cafe_lunch_B" / "config.txt",
+        arrivals_path=INPUT_DIR / "cafe_lunch_B" / "arrivals.txt",
     ),
     Scenario(
         pair_id="fastfood_rush",
@@ -76,8 +77,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="total seating capacity",
         variation_summary="Limited rush seating capacity",
         description="Fast-food rush with tighter seating capacity and stronger queue pressure.",
-        config_path=BASE_DIR / "pair_5_A" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_5_A" / "arrivals.txt",
+        config_path=INPUT_DIR / "fastfood_rush_A" / "config.txt",
+        arrivals_path=INPUT_DIR / "fastfood_rush_A" / "arrivals.txt",
     ),
     Scenario(
         pair_id="fastfood_rush",
@@ -87,8 +88,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="total seating capacity",
         variation_summary="Expanded rush seating capacity",
         description="Fast-food rush with expanded seating capacity under the same arrival pattern.",
-        config_path=BASE_DIR / "pair_5_B" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_5_B" / "arrivals.txt",
+        config_path=INPUT_DIR / "fastfood_rush_B" / "config.txt",
+        arrivals_path=INPUT_DIR / "fastfood_rush_B" / "arrivals.txt",
     ),
     Scenario(
         pair_id="sushi_belt",
@@ -98,8 +99,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="small-seat vs group-seat emphasis",
         variation_summary="Many 1-seat and 2-seat spots",
         description="Sushi belt lunch layout optimized for solo diners and pairs.",
-        config_path=BASE_DIR / "pair_6_A" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_6_A" / "arrivals.txt",
+        config_path=INPUT_DIR / "sushi_belt_A" / "config.txt",
+        arrivals_path=INPUT_DIR / "sushi_belt_A" / "arrivals.txt",
     ),
     Scenario(
         pair_id="sushi_belt",
@@ -109,8 +110,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="small-seat vs group-seat emphasis",
         variation_summary="Fewer solo spots and more 4-seat tables",
         description="Sushi belt lunch layout that gives up solo spots for more shared-table flexibility.",
-        config_path=BASE_DIR / "pair_6_B" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_6_B" / "arrivals.txt",
+        config_path=INPUT_DIR / "sushi_belt_B" / "config.txt",
+        arrivals_path=INPUT_DIR / "sushi_belt_B" / "arrivals.txt",
     ),
     Scenario(
         pair_id="kbbq_hotpot",
@@ -120,8 +121,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="layout focus for expected group sizes",
         variation_summary="More 4-seat tables",
         description="KBBQ or hotpot dinner service built around more 4-seat tables for medium groups.",
-        config_path=BASE_DIR / "pair_7_A" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_7_A" / "arrivals.txt",
+        config_path=INPUT_DIR / "kbbq_hotpot_A" / "config.txt",
+        arrivals_path=INPUT_DIR / "kbbq_hotpot_A" / "arrivals.txt",
     ),
     Scenario(
         pair_id="kbbq_hotpot",
@@ -131,8 +132,8 @@ SCENARIOS: List[Scenario] = [
         factor_changed="layout focus for expected group sizes",
         variation_summary="More 6-seat tables",
         description="KBBQ or hotpot dinner service built around more 6-seat tables for large groups.",
-        config_path=BASE_DIR / "pair_7_B" / "config.txt",
-        arrivals_path=BASE_DIR / "pair_7_B" / "arrivals.txt",
+        config_path=INPUT_DIR / "kbbq_hotpot_B" / "config.txt",
+        arrivals_path=INPUT_DIR / "kbbq_hotpot_B" / "arrivals.txt",
     ),
 ]
 

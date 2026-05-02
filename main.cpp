@@ -2,13 +2,18 @@
 #include "simulation.h"
 
 #include <cctype>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
 #include <string>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/ioctl.h>
 #include <unistd.h>
+#endif
 #include <vector>
 
 namespace {
@@ -122,15 +127,15 @@ const std::vector<PairOption> kPairs = {
             "family_dinner_A",
             "Variation A",
             "Balanced 2-seat, 4-seat, and 6-seat layout for mixed family groups.",
-            "pair_3_A/config.txt",
-            "pair_3_A/arrivals.txt",
+            "input/default/family_dinner_A/config.txt",
+            "input/default/family_dinner_A/arrivals.txt",
         },
         {
             "family_dinner_B",
             "Variation B",
             "Large-table-heavy layout with fewer small-table options for families.",
-            "pair_3_B/config.txt",
-            "pair_3_B/arrivals.txt",
+            "input/default/family_dinner_B/config.txt",
+            "input/default/family_dinner_B/arrivals.txt",
         },
     },
     {
@@ -144,15 +149,15 @@ const std::vector<PairOption> kPairs = {
             "cafe_lunch_A",
             "Variation A",
             "Mostly 2-seat cafe tables with only one 4-seat table.",
-            "pair_4_A/config.txt",
-            "pair_4_A/arrivals.txt",
+            "input/default/cafe_lunch_A/config.txt",
+            "input/default/cafe_lunch_A/arrivals.txt",
         },
         {
             "cafe_lunch_B",
             "Variation B",
             "A more mixed cafe layout with more 4-seat flexibility.",
-            "pair_4_B/config.txt",
-            "pair_4_B/arrivals.txt",
+            "input/default/cafe_lunch_B/config.txt",
+            "input/default/cafe_lunch_B/arrivals.txt",
         },
     },
     {
@@ -166,15 +171,15 @@ const std::vector<PairOption> kPairs = {
             "fastfood_rush_A",
             "Variation A",
             "Limited seating capacity during the rush.",
-            "pair_5_A/config.txt",
-            "pair_5_A/arrivals.txt",
+            "input/default/fastfood_rush_A/config.txt",
+            "input/default/fastfood_rush_A/arrivals.txt",
         },
         {
             "fastfood_rush_B",
             "Variation B",
             "Expanded seating capacity with the same arrivals and durations.",
-            "pair_5_B/config.txt",
-            "pair_5_B/arrivals.txt",
+            "input/default/fastfood_rush_B/config.txt",
+            "input/default/fastfood_rush_B/arrivals.txt",
         },
     },
     {
@@ -188,15 +193,15 @@ const std::vector<PairOption> kPairs = {
             "sushi_belt_A",
             "Variation A",
             "Many 1-seat and 2-seat spots, optimized for solo diners and pairs.",
-            "pair_6_A/config.txt",
-            "pair_6_A/arrivals.txt",
+            "input/default/sushi_belt_A/config.txt",
+            "input/default/sushi_belt_A/arrivals.txt",
         },
         {
             "sushi_belt_B",
             "Variation B",
             "Fewer solo spots and more 4-seat tables for small groups.",
-            "pair_6_B/config.txt",
-            "pair_6_B/arrivals.txt",
+            "input/default/sushi_belt_B/config.txt",
+            "input/default/sushi_belt_B/arrivals.txt",
         },
     },
     {
@@ -210,15 +215,15 @@ const std::vector<PairOption> kPairs = {
             "kbbq_hotpot_A",
             "Variation A",
             "More 4-seat tables for medium groups and couples joining another pair.",
-            "pair_7_A/config.txt",
-            "pair_7_A/arrivals.txt",
+            "input/default/kbbq_hotpot_A/config.txt",
+            "input/default/kbbq_hotpot_A/arrivals.txt",
         },
         {
             "kbbq_hotpot_B",
             "Variation B",
             "More 6-seat tables to better support large groups during long stays.",
-            "pair_7_B/config.txt",
-            "pair_7_B/arrivals.txt",
+            "input/default/kbbq_hotpot_B/config.txt",
+            "input/default/kbbq_hotpot_B/arrivals.txt",
         },
     },
 };
@@ -229,10 +234,21 @@ struct TerminalSize {
 };
 
 TerminalSize getTerminalSize() {
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &consoleInfo)) {
+        const int cols = consoleInfo.srWindow.Right - consoleInfo.srWindow.Left + 1;
+        const int rows = consoleInfo.srWindow.Bottom - consoleInfo.srWindow.Top + 1;
+        if (rows > 0 && cols > 0) {
+            return {rows, cols};
+        }
+    }
+#else
     winsize ws {};
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_col > 0) {
         return {static_cast<int>(ws.ws_row), static_cast<int>(ws.ws_col)};
     }
+#endif
 
     return {24, 100};
 }
@@ -620,7 +636,15 @@ ScenarioOption promptForCustomScenario() {
 }
 
 std::string buildLogPath(const std::string& scenarioName, const std::string& algorithmKey) {
-    return "seating_log_" + scenarioName + "_" + algorithmKey + ".csv";
+    if (algorithmKey == "fcfs") {
+        return "output/fcfs_seating_log_" + scenarioName + ".csv";
+    }
+
+    if (algorithmKey == "size_queue") {
+        return "output/size_seating_log_" + scenarioName + ".csv";
+    }
+
+    return "output/seating_log_" + scenarioName + ".csv";
 }
 
 void printSummary(const SimulationSummary& summary) {
@@ -678,6 +702,7 @@ RunOutcome runScenario(
         simulation.precomputeHourlyRates(arrivals);
     }
 
+    std::filesystem::create_directories("output");
     outcome.logPath = buildLogPath(scenario.name, algorithm.key);
     simulation.setSeatingLogPath(outcome.logPath);
 
