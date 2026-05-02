@@ -2,9 +2,22 @@
 
 #include <cctype>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
+
+namespace {
+
+std::vector<QueueRule> fixedSizeQueueRules() {
+    return {
+        QueueRule{1, 2},
+        QueueRule{3, 4},
+        QueueRule{5, std::numeric_limits<int>::max()},
+    };
+}
+
+} // namespace
 
 std::string trimSpace(const std::string& value) {
     std::size_t start = 0;
@@ -82,14 +95,12 @@ void InputParser::loadConfig(const std::string& configPath) {
             continue;
         }
 
-        if (fields[0] == "QUEUE" && fields.size() >= 3) {
-            queueRules.push_back(QueueRule{std::stoi(fields[1]), std::stoi(fields[2])});
+        if (fields[0] == "QUEUE") {
+            continue;
         }
     }
 
-    if (queueRules.empty()) {
-        queueRules.push_back(QueueRule{1, 99});
-    }
+    queueRules = fixedSizeQueueRules();
 }
 
 void InputParser::loadArrivals(const std::string& arrivalsPath) {

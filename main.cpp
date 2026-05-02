@@ -1,11 +1,16 @@
+#include "fcfs_simulation.h"
 #include "restaurant_parser.h"
 #include "simulation.h"
+#include "size_queue_simulation.h"
 
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
 #ifdef _WIN32
@@ -61,6 +66,21 @@ struct RunOutcome {
     std::string logPath;
 };
 
+struct AlgorithmPromptResult {
+    const AlgorithmOption* algorithm = nullptr;
+    bool runAllAlgorithms = false;
+};
+
+struct BatchComparisonResult {
+    std::string algorithmLabel;
+    std::string restaurantLabel;
+    std::string pairTitle;
+    std::string scenarioAName;
+    std::string scenarioBName;
+    RunOutcome outcomeA;
+    RunOutcome outcomeB;
+};
+
 const std::vector<AlgorithmOption> kAlgorithms = {
     {
         AlgorithmType::Custom,
@@ -78,7 +98,7 @@ const std::vector<AlgorithmOption> kAlgorithms = {
         AlgorithmType::SizeQueue,
         "size_queue",
         "Size-Based Queue",
-        "Uses the QUEUE size bands and lets larger tables prefer larger-group queues first.",
+        "Uses fixed 1-2, 3-4, and 5+ person queues; larger tables prefer larger groups first.",
     },
 };
 
@@ -420,7 +440,7 @@ R"(    (\
     }
 }
 
-const AlgorithmOption* promptForAlgorithmChoice() {
+AlgorithmPromptResult promptForAlgorithmChoice() {
     while (true) {
         clearScreen();
         std::cout << "\nChoose an algorithm to run\n\n";
@@ -429,6 +449,9 @@ const AlgorithmOption* promptForAlgorithmChoice() {
                       << std::left << std::setw(22) << kAlgorithms[i].label
                       << " - " << kAlgorithms[i].description << '\n';
         }
+        std::cout << "  " << (kAlgorithms.size() + 1) << ". "
+                  << std::left << std::setw(22) << "Run Everything"
+                  << " - Run A vs B for every case study using every algorithm.\n";
         std::cout << "  0. Back\n";
         std::cout << "\nWhat are you comparing here?\n";
         std::cout << "  You will keep the same arrivals inside each pair and change only one restaurant factor.\n";
@@ -439,10 +462,13 @@ const AlgorithmOption* promptForAlgorithmChoice() {
         if (std::cin >> choice) {
             clearInputState();
             if (choice == 0) {
-                return nullptr;
+                return AlgorithmPromptResult{};
             }
             if (choice >= 1 && choice <= static_cast<int>(kAlgorithms.size())) {
-                return &kAlgorithms[choice - 1];
+                return AlgorithmPromptResult{&kAlgorithms[choice - 1], false};
+            }
+            if (choice == static_cast<int>(kAlgorithms.size() + 1)) {
+                return AlgorithmPromptResult{nullptr, true};
             }
         } else {
             clearInputState();
@@ -647,6 +673,138 @@ std::string buildLogPath(const std::string& scenarioName, const std::string& alg
     return "output/seating_log_" + scenarioName + ".csv";
 }
 
+struct SeatingLogRecord {
+    int groupSize = 0;
+    int arrivalTime = 0;
+    int seatingTime = 0;
+    int waitTime = 0;
+    int diningDuration = 0;
+    int departureTime = 0;
+};
+
+std::vector<std::string> splitCsvRow(const std::string& row) {
+    std::vector<std::string> fields;
+    std::stringstream stream(row);
+    std::string field;
+
+    while (std::getline(stream, field, ',')) {
+        fields.push_back(field);
+    }
+
+    return fields;
+}
+
+std::vector<SeatingLogRecord> readSeatingLogRecords(const std::string& logPath) {
+    std::vector<SeatingLogRecord> records;
+    std::ifstream input(logPath);
+    if (!input.is_open()) {
+        return records;
+    }
+
+    std::string line;
+    std::getline(input, line);
+
+    while (std::getline(input, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        const std::vector<std::string> fields = splitCsvRow(line);
+        if (fields.size() < 9) {
+            continue;
+        }
+
+        records.push_back(
+            SeatingLogRecord{
+                std::stoi(fields[1]),
+                std::stoi(fields[2]),
+                std::stoi(fields[3]),
+                std::stoi(fields[4]),
+                std::stoi(fields[7]),
+                std::stoi(fields[8]),
+            }
+        );
+    }
+
+    return records;
+}
+
+int totalSeatsFromTables(const std::vector<Table>& tables) {
+    int totalSeats = 0;
+    for (const Table& table : tables) {
+        totalSeats += table.capacity;
+    }
+    return totalSeats;
+}
+
+int maxQueueLengthFromLogRecords(const std::vector<SeatingLogRecord>& records) {
+    std::map<int, int> arrivalsByTime;
+    std::map<int, int> seatingsByTime;
+    std::map<int, bool> eventTimes;
+
+    for (const SeatingLogRecord& record : records) {
+        arrivalsByTime[record.arrivalTime]++;
+        seatingsByTime[record.seatingTime]++;
+        eventTimes[record.arrivalTime] = true;
+        eventTimes[record.seatingTime] = true;
+    }
+
+    int currentQueue = 0;
+    int maxQueue = 0;
+    for (const auto& event : eventTimes) {
+        const int time = event.first;
+        currentQueue += arrivalsByTime[time];
+        maxQueue = std::max(maxQueue, currentQueue);
+        currentQueue -= seatingsByTime[time];
+    }
+
+    return maxQueue;
+}
+
+SimulationSummary buildSummaryFromSeatingLog(
+    const std::string& logPath,
+    const std::vector<Table>& tables
+) {
+    const std::vector<SeatingLogRecord> records = readSeatingLogRecords(logPath);
+    const int totalSeats = totalSeatsFromTables(tables);
+
+    SimulationSummary summary;
+    summary.groupsServed = static_cast<int>(records.size());
+    summary.maxQueueLength = maxQueueLengthFromLogRecords(records);
+
+    int totalWait = 0;
+    int groupsWithin15 = 0;
+    int usedSeatMinutes = 0;
+    int endTime = 0;
+
+    for (const SeatingLogRecord& record : records) {
+        totalWait += record.waitTime;
+        summary.maxWait = std::max(summary.maxWait, record.waitTime);
+        if (record.waitTime <= 15) {
+            groupsWithin15++;
+        }
+
+        usedSeatMinutes += record.groupSize * record.diningDuration;
+        endTime = std::max(endTime, record.departureTime);
+    }
+
+    summary.totalSimulationTime = endTime;
+    if (summary.groupsServed > 0) {
+        summary.averageWait =
+            static_cast<double>(totalWait) / static_cast<double>(summary.groupsServed);
+        summary.serviceLevel15 =
+            (static_cast<double>(groupsWithin15) / static_cast<double>(summary.groupsServed)) * 100.0;
+    }
+
+    if (totalSeats > 0 && endTime > 0) {
+        summary.tableUtilization =
+            (static_cast<double>(usedSeatMinutes) /
+             static_cast<double>(totalSeats * endTime)) * 100.0;
+    }
+
+    return summary;
+}
+
 void printSummary(const SimulationSummary& summary) {
     std::cout << "\nSummary metrics\n";
     std::cout << "  Groups served:             " << summary.groupsServed << '\n';
@@ -691,20 +849,8 @@ RunOutcome runScenario(
         return outcome;
     }
 
-    WokThisWaySim simulation(
-        tables,
-        queueRules,
-        algorithm.type,
-        settings.fairnessWeight,
-        settings.lookAheadWindow
-    );
-    if (algorithm.type == AlgorithmType::Custom) {
-        simulation.precomputeHourlyRates(arrivals);
-    }
-
     std::filesystem::create_directories("output");
     outcome.logPath = buildLogPath(scenario.name, algorithm.key);
-    simulation.setSeatingLogPath(outcome.logPath);
 
     clearScreen();
     std::cout << "\nRunning " << scenario.name << " with " << algorithm.label << "\n\n";
@@ -713,7 +859,29 @@ RunOutcome runScenario(
     std::cout << "Arrivals: " << scenario.arrivalsPath << '\n';
     std::cout << "Log file: " << outcome.logPath << "\n\n";
 
-    outcome.summary = simulation.runSimulation(arrivals);
+    if (algorithm.type == AlgorithmType::Custom) {
+        WokThisWaySim simulation(
+            tables,
+            queueRules,
+            AlgorithmType::Custom,
+            settings.fairnessWeight,
+            settings.lookAheadWindow
+        );
+        simulation.precomputeHourlyRates(arrivals);
+        simulation.setSeatingLogPath(outcome.logPath);
+        outcome.summary = simulation.runSimulation(arrivals);
+    } else if (algorithm.type == AlgorithmType::FCFS) {
+        FCFSSimulation simulation(tables);
+        simulation.setSeatingLogPath(outcome.logPath);
+        simulation.runSimulation(arrivals);
+        outcome.summary = buildSummaryFromSeatingLog(outcome.logPath, tables);
+    } else {
+        SizeQueueSimulation simulation(tables);
+        simulation.setSeatingLogPath(outcome.logPath);
+        simulation.runSimulation(arrivals);
+        outcome.summary = buildSummaryFromSeatingLog(outcome.logPath, tables);
+    }
+
     outcome.success = true;
 
     printSummary(outcome.summary);
@@ -789,6 +957,131 @@ void showPairComparison(
     pauseForEnter();
 }
 
+std::string shortened(const std::string& value, std::size_t maxWidth) {
+    if (value.size() <= maxWidth) {
+        return value;
+    }
+
+    if (maxWidth <= 3) {
+        return value.substr(0, maxWidth);
+    }
+
+    return value.substr(0, maxWidth - 3) + "...";
+}
+
+std::string betterVariation(double valueA, double valueB, bool lowerIsBetter) {
+    if (valueA == valueB) {
+        return "Tie";
+    }
+
+    if (lowerIsBetter) {
+        return (valueA < valueB) ? "A" : "B";
+    }
+
+    return (valueA > valueB) ? "A" : "B";
+}
+
+void showBatchComparisonSummary(const std::vector<BatchComparisonResult>& results) {
+    clearScreen();
+    std::cout << "\nAll algorithms / all case studies complete\n\n";
+    std::cout << "Each row compares variation A and variation B for the same case study.\n";
+    std::cout << "Custom runs used the default settings: fairness weight 1.0, look-ahead window 15 minutes.\n\n";
+
+    std::cout << std::left
+              << std::setw(16) << "Algorithm"
+              << std::setw(18) << "Restaurant"
+              << std::setw(34) << "Case study"
+              << std::right
+              << std::setw(9) << "Avg A"
+              << std::setw(9) << "Avg B"
+              << std::setw(8) << "Wait"
+              << std::setw(9) << "Util A"
+              << std::setw(9) << "Util B"
+              << std::setw(8) << "QueueA"
+              << std::setw(8) << "QueueB"
+              << '\n';
+    std::cout << std::string(128, '-') << '\n';
+
+    for (const BatchComparisonResult& result : results) {
+        if (!result.outcomeA.success || !result.outcomeB.success) {
+            std::cout << std::left
+                      << std::setw(16) << shortened(result.algorithmLabel, 15)
+                      << std::setw(18) << shortened(result.restaurantLabel, 17)
+                      << std::setw(34) << shortened(result.pairTitle, 33)
+                      << "failed\n";
+            continue;
+        }
+
+        std::cout << std::left
+                  << std::setw(16) << shortened(result.algorithmLabel, 15)
+                  << std::setw(18) << shortened(result.restaurantLabel, 17)
+                  << std::setw(34) << shortened(result.pairTitle, 33)
+                  << std::right
+                  << std::setw(9) << std::fixed << std::setprecision(2)
+                  << result.outcomeA.summary.averageWait
+                  << std::setw(9) << std::fixed << std::setprecision(2)
+                  << result.outcomeB.summary.averageWait
+                  << std::setw(8)
+                  << betterVariation(
+                         result.outcomeA.summary.averageWait,
+                         result.outcomeB.summary.averageWait,
+                         true
+                     )
+                  << std::setw(9) << std::fixed << std::setprecision(2)
+                  << result.outcomeA.summary.tableUtilization
+                  << std::setw(9) << std::fixed << std::setprecision(2)
+                  << result.outcomeB.summary.tableUtilization
+                  << std::setw(8) << result.outcomeA.summary.maxQueueLength
+                  << std::setw(8) << result.outcomeB.summary.maxQueueLength
+                  << '\n';
+    }
+
+    std::cout << "\nLogs were written to the usual algorithm-specific files in output/.\n";
+    pauseForEnter();
+}
+
+void runAllAlgorithmsForAllPairs() {
+    const SimulationSettings defaultSettings;
+    std::vector<BatchComparisonResult> results;
+
+    for (const AlgorithmOption& algorithm : kAlgorithms) {
+        for (const PairOption& pair : kPairs) {
+            clearScreen();
+            std::cout << "\nRunning all simulations\n\n";
+            std::cout << "Algorithm: " << algorithm.label << '\n';
+            std::cout << "Case study: " << pair.restaurantLabel << " - " << pair.title << '\n';
+            std::cout << "Action: Compare A vs B side by side\n\n";
+
+            const RunOutcome outcomeA = runScenario(
+                pair.optionA,
+                algorithm,
+                defaultSettings,
+                false
+            );
+            const RunOutcome outcomeB = runScenario(
+                pair.optionB,
+                algorithm,
+                defaultSettings,
+                false
+            );
+
+            results.push_back(
+                BatchComparisonResult{
+                    algorithm.label,
+                    pair.restaurantLabel,
+                    pair.title,
+                    pair.optionA.name,
+                    pair.optionB.name,
+                    outcomeA,
+                    outcomeB,
+                }
+            );
+        }
+    }
+
+    showBatchComparisonSummary(results);
+}
+
 } // namespace
 
 int main() {
@@ -800,7 +1093,13 @@ int main() {
             return 0;
         }
 
-        const AlgorithmOption* algorithm = promptForAlgorithmChoice();
+        const AlgorithmPromptResult algorithmChoice = promptForAlgorithmChoice();
+        if (algorithmChoice.runAllAlgorithms) {
+            runAllAlgorithmsForAllPairs();
+            continue;
+        }
+
+        const AlgorithmOption* algorithm = algorithmChoice.algorithm;
         if (algorithm == nullptr) {
             continue;
         }

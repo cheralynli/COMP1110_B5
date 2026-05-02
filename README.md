@@ -6,15 +6,17 @@ This repository contains a student-level restaurant queue simulation project for
 
 - `custom`: the original WokThisWay heuristic. It scores waiting groups using group size, dining duration, waiting time, and a fairness weight, then compares that score against an opportunity-cost estimate before seating a group.
 - `fcfs`: a first-come, first-served baseline. The earliest arriving group that fits a free table is seated first.
-- `size_queue`: a size-based queue baseline used by the case-study runner. Groups are assigned to size bands from the `QUEUE,min_size,max_size` lines, and larger tables prefer the closest larger queue first so they are less likely to be consumed by very small groups.
+- `size_queue`: a size-based queue baseline used by the case-study runner. Groups are assigned to fixed queues for 1-2, 3-4, and 5+ person groups, and larger tables prefer larger-group queues first so they are less likely to be consumed by very small groups.
 
 ## Important Note About `QUEUE` Lines
 
-The project now reads both `TABLE` lines and `QUEUE` lines:
+The project now reads `TABLE` lines for the restaurant layout. `QUEUE` lines may still appear in older input files, but the size-based queue algorithm uses fixed bands:
 
-- the interactive C++ menu supports `custom`, `fcfs`, and `size_queue`
-- the `size_queue` mode uses the `QUEUE,min_size,max_size` bands
-- the Python batch runner uses the same queue-band idea when it evaluates `size_queue`
+- 1-2 person groups
+- 3-4 person groups
+- 5+ person groups
+
+The interactive C++ menu supports `custom`, `fcfs`, and `size_queue`, and the Python batch runner uses the same fixed queue-band idea when it evaluates `size_queue`.
 
 ## Build And Run
 

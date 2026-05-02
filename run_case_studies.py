@@ -25,6 +25,12 @@ FAIRNESS_WEIGHT = 1.0
 LOOK_AHEAD_WINDOW = 15
 DEFAULT_MAX_WAIT = 30
 ALGORITHMS = ("custom", "fcfs", "size_queue")
+MAX_GROUP_SIZE = 10**9
+SIZE_QUEUE_RULES = (
+    (1, 2),
+    (3, 4),
+    (5, MAX_GROUP_SIZE),
+)
 
 
 @dataclass
@@ -59,7 +65,6 @@ class SimulationOutcome:
 
 def parse_config(config_path: Path) -> Tuple[List[Table], List[QueueRule]]:
     tables: List[Table] = []
-    queue_rules: List[QueueRule] = []
 
     with config_path.open(encoding="utf-8") as handle:
         for raw_line in handle:
@@ -70,12 +75,11 @@ def parse_config(config_path: Path) -> Tuple[List[Table], List[QueueRule]]:
             fields = [field.strip() for field in line.split(",")]
             if fields[0] == "TABLE":
                 tables.append(Table(id=int(fields[2]), capacity=int(fields[1])))
-            elif fields[0] == "QUEUE":
-                queue_rules.append(QueueRule(min_size=int(fields[1]), max_size=int(fields[2])))
 
-    if not queue_rules:
-        queue_rules = [QueueRule(min_size=1, max_size=99)]
-
+    queue_rules = [
+        QueueRule(min_size=min_size, max_size=max_size)
+        for min_size, max_size in SIZE_QUEUE_RULES
+    ]
     return tables, queue_rules
 
 
