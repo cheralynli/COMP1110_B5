@@ -1,182 +1,228 @@
 # Restaurant Queue Simulation Case Study
 
-This repository contains a student-level restaurant queue simulation project for COMP1110. The project keeps the original C++ custom seating heuristic for manual runs, and adds a Python batch runner so the case-study scenarios can be compared cleanly across multiple queueing strategies.
+This repo is a COMP1110 restaurant queue simulation project. It compares three seating algorithms across paired restaurant case studies, then generates metric summaries and charts from the seating logs.
 
-## What The Algorithms Do
+## What This Project Does
 
-- `custom`: the original WokThisWay heuristic. It scores waiting groups using group size, dining duration, waiting time, and a fairness weight, then compares that score against an opportunity-cost estimate before seating a group.
-- `fcfs`: a first-come, first-served baseline. The earliest arriving group that fits a free table is seated first.
-- `size_queue`: a size-based queue baseline used by the case-study runner. Groups are assigned to fixed queues for 1-2, 3-4, and 5+ person groups, and larger tables prefer larger-group queues first so they are less likely to be consumed by very small groups.
+The simulator models groups arriving at a restaurant, waiting for a suitable table, dining for a fixed duration, and leaving. Each run writes a seating log to `output/`, and the Python analysis scripts turn those logs into CSV summaries and chart images.
 
-## Important Note About `QUEUE` Lines
+Algorithms:
 
-The project now reads `TABLE` lines for the restaurant layout. `QUEUE` lines may still appear in older input files, but the size-based queue algorithm uses fixed bands:
+- `custom` / WokThisWaySim: scores possible table-group pairings using waiting time, group size, dining duration, table fit, and future-demand regret.
+- `fcfs`: first-come, first-served. Seats the earliest waiting group that fits an available table.
+- `size_queue`: splits waiting groups into fixed queues: `1-2`, `3-4`, and `5+` people. Larger tables prefer larger-group queues first.
 
-- 1-2 person groups
-- 3-4 person groups
-- 5+ person groups
+## Repo Layout
 
-The interactive C++ menu supports `custom`, `fcfs`, and `size_queue`, and the Python batch runner uses the same fixed queue-band idea when it evaluates `size_queue`.
+- `main.cpp`: main interactive UI for choosing algorithms, scenarios, comparisons, and metric/chart generation.
+- `simulation.cpp`: WokThisWaySim custom algorithm.
+- `fcfs_simulation.cpp`: FCFS baseline.
+- `size_queue_simulation.cpp`: size-based queue baseline.
+- `restaurant_parser.cpp`: reads table configs and arrivals.
+- `input/default/`: active A/B case-study inputs.
+- `metrics.py`: generates `output/*metrics_summary.csv`.
+- `visualize.py`: generates chart images from metric summaries.
+- `run_case_studies.py`: optional Python-only batch runner.
+- `requirements.txt`: Python dependencies for charts.
 
-### Set Up the Environment
+## Prerequisites
 
-1. Run the following commands:
+You need:
+
+- Python 3
+- A C++17 compiler, usually `g++`
+- Optional: `make`
+
+On Windows, the easiest C++ options are:
+
+- WSL with Ubuntu and `g++`
+- MSYS2/MinGW with `g++`
+- Any terminal where `g++ --version` works
+
+## Setup
+
+Clone the repo and enter the project folder:
 
 ```bash
-# clone the repository
 git clone https://github.com/cheralynli/COMP1110_B5.git
+cd COMP1110_B5
+```
 
-# create a new environment
+### PowerShell
+
+Create and activate a Python virtual environment:
+
+```powershell
 python -m venv .venv
-
-# activate environment
 .\.venv\Scripts\Activate.ps1
-
-# install dependencies
 pip install -r requirements.txt
 ```
 
-## Build And Run
+If PowerShell blocks activation, run this once in the same terminal:
 
-Compile the C++ simulator with:
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+Compile the main UI:
+
+```powershell
+g++ -std=c++17 -Wall -Wextra -pedantic main.cpp simulation.cpp fcfs_simulation.cpp size_queue_simulation.cpp restaurant_parser.cpp -o restaurant_sim.exe
+```
+
+Run it:
+
+```powershell
+.\restaurant_sim.exe
+```
+
+### Bash, Git Bash, macOS, Linux, Or WSL
+
+Create and activate a Python virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+If `make` is available:
 
 ```bash
 make
+./restaurant_sim
 ```
 
-Run the interactive custom simulator with:
+If `make` is not available, compile directly:
 
 ```bash
-make run
+g++ -std=c++17 -Wall -Wextra -pedantic main.cpp simulation.cpp fcfs_simulation.cpp size_queue_simulation.cpp restaurant_parser.cpp -o restaurant_sim
+./restaurant_sim
 ```
 
-The interactive C++ menu now lets you:
+## Using The Main UI
 
-- choose `Our Custom Algorithm`, `FCFS`, or `Size-Based Queue`
-- browse the 5 main restaurant case studies: `Fast Food`, `Cafe`, `Family Dining`, `Sushi Belt`, and `KBBQ / Hotpot`
-- run variation `A`, variation `B`, or a side-by-side `A vs B` comparison for a case study
+Run the compiled program from the repo root.
 
-Clean compiled files with:
+Start screen:
+
+- `s`: start the case-study UI
+- `g`: generate metrics and charts by running `metrics.py` and `visualize.py`
+- `q`: quit
+
+Inside the case-study UI, you can:
+
+- choose `Our Custom Algorithm`
+- choose `FCFS`
+- choose `Size-Based Queue`
+- choose `Run Everything` to run every A/B case study on every algorithm
+- choose a restaurant case study
+- run variation `A`
+- run variation `B`
+- compare `A vs B` side by side
+- enter custom config/arrival file paths
+
+Typical workflow:
+
+1. Run `restaurant_sim`.
+2. Press `s`.
+3. Choose an algorithm, or choose `Run Everything`.
+4. Run the desired case studies.
+5. Return to the start screen.
+6. Press `g` to regenerate metrics and charts.
+
+## Outputs
+
+Interactive C++ runs write logs to `output/`:
+
+- `output/seating_log_<scenario>.csv`: WokThisWaySim custom runs
+- `output/fcfs_seating_log_<scenario>.csv`: FCFS runs
+- `output/size_seating_log_<scenario>.csv`: size-based queue runs
+
+Metric summaries:
+
+- `output/metrics_summary.csv`
+- `output/fcfs_metrics_summary.csv`
+- `output/size_metrics_summary.csv`
+
+Chart folders:
+
+- `output/ourAlgo_charts/`
+- `output/fcfs_charts/`
+- `output/size_charts/`
+- `output/charts/`
+- `output/scenario_comparison_charts/`
+
+## Manual Python Commands
+
+The UI can generate metrics and charts for you, but you can still run the scripts manually.
+
+PowerShell:
+
+```powershell
+python metrics.py
+python visualize.py
+```
+
+Bash or WSL:
 
 ```bash
-make clean
+python3 metrics.py
+python3 visualize.py
 ```
 
-## Manual Scenario Run
-
-The menu keeps the text-based interface. For a manual run you can:
-
-1. Run `make run`
-2. Choose an algorithm
-3. Choose `Custom file paths` from the menu, or select one of the built-in case-study categories
-4. Enter a paired case-study config and arrivals file such as:
-
-```text
-pair_6_A/config.txt
-pair_6_A/arrivals.txt
-```
-
-The interactive run writes a seating log such as `seating_log_custom_run.csv` or `seating_log_<scenario>.csv`.
-
-## Case-Study Design
-
-The assignment requires paired scenarios where variation A and variation B keep the **same arrivals** and change exactly **one restaurant setup factor**. This repository now highlights 5 main restaurant case studies:
-
-- `Family Dining`: balanced vs large-table-heavy layout
-- `Cafe`: two-seat-heavy vs mixed cafe layout
-- `Fast Food`: limited vs expanded rush capacity
-- `Sushi Belt`: solo-seat priority vs more shared seating
-- `KBBQ / Hotpot`: medium-group focus vs large-group focus
-
-The older `pair_1` and `pair_2` fast-food scenarios still exist on disk, but the main scenario registry and UI are now organized around the 5 restaurant case studies above.
-
-Each pair folder contains:
-
-- `config.txt`
-- `arrivals.txt`
-
-Within each pair, `A` and `B` use identical arrival patterns.
-
-## Active Scenario Registry
-
-Inspect the active case-study set with:
-
-```bash
-python3 scenarios.py
-```
-
-This prints the restaurant, case-study title, factor changed, and the exact config and arrivals paths.
-
-## Run All Case Studies
-
-Use the batch runner to execute every active paired scenario for all available algorithms:
+Optional Python-only batch runner:
 
 ```bash
 python3 run_case_studies.py
 ```
 
-This produces:
+On PowerShell:
 
-- `results.csv`: one row per scenario and algorithm
-- `outputs/seating_logs/`: seating logs for every scenario and algorithm
-- `outputs/case_study_tables.md`: neat markdown tables generated from the current results
-- `CASE_STUDY_TABLE_TEMPLATE.md`: a report-friendly template for turning results into side-by-side analysis tables
-
-## `results.csv` Columns
-
-The batch runner writes these columns:
-
-```text
-restaurant,
-case_study_title,
-pair_id,
-variation,
-factor_changed,
-variation_summary,
-algorithm,
-scenario_name,
-avg_wait,
-max_wait,
-groups_served,
-table_utilization,
-service_level_15,
-max_queue_length_if_available,
-config_path,
-arrivals_path
+```powershell
+python run_case_studies.py
 ```
 
-Notes:
+## Input File Format
 
-- `table_utilization` is reported as a percentage of total seat-minutes used over total seat-minutes available until the last departure.
-- `service_level_15` is the percentage of seated groups that waited 15 minutes or less.
-- `max_queue_length_if_available` is tracked by the Python case-study runner.
-
-## Input File Formats
-
-Restaurant configuration format:
+Config files:
 
 ```text
 TABLE,capacity,id
 QUEUE,min_size,max_size
 ```
 
-Customer arrivals format:
+The current size-based queue algorithm always uses fixed bands `1-2`, `3-4`, and `5+`. Existing `QUEUE` lines may remain in config files for readability/legacy compatibility.
+
+Arrival files:
 
 ```text
 ARRIVAL,time,group_size,dining_duration
 ```
 
-Table ids should be numeric because the current C++ parser expects numeric ids.
+Table ids must be numeric.
 
-## Python Files
+## Active Case Studies
 
-- `scenarios.py`: lists the active paired scenarios used for the case study
-- `run_case_studies.py`: runs all active scenarios across `custom`, `fcfs`, and `size_queue`
-- `metrics.py`: reusable metric helpers for seating logs
-- `CASE_STUDY_TABLE_TEMPLATE.md`: suggested table layout and analysis prompts for the written case-study section
+The active paired scenarios live under `input/default/`:
 
-## Current Limitations
+- `family_dinner_A` vs `family_dinner_B`
+- `cafe_lunch_A` vs `cafe_lunch_B`
+- `fastfood_rush_A` vs `fastfood_rush_B`
+- `sushi_belt_A` vs `sushi_belt_B`
+- `kbbq_hotpot_A` vs `kbbq_hotpot_B`
 
-- The interactive C++ simulator does not use `QUEUE` lines.
-- The batch runner compares three algorithms, but only the `custom` algorithm exists in the original C++ source.
-- The older `fastfood_peak`, `fastfood_non_peak`, `cafe_peak`, `cafe_non_peak`, `family_peak`, and `family_non_peak` folders are legacy examples and are not used as the main case-study set because their peak/non-peak variants change the arrivals pattern.
+Each A/B pair keeps the arrival pattern the same and changes one restaurant setup factor.
+
+To inspect the scenario registry:
+
+```bash
+python3 scenarios.py
+```
+
+PowerShell:
+
+```powershell
+python scenarios.py
+```
