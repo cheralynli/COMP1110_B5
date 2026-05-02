@@ -18,6 +18,24 @@ The project now reads `TABLE` lines for the restaurant layout. `QUEUE` lines may
 
 The interactive C++ menu supports `custom`, `fcfs`, and `size_queue`, and the Python batch runner uses the same fixed queue-band idea when it evaluates `size_queue`.
 
+### Set Up the Environment
+
+1. Run the following commands:
+
+```bash
+# clone the repository
+git clone https://github.com/cheralynli/COMP1110_B5.git
+
+# create a new environment
+python -m venv .venv
+
+# activate environment
+.\.venv\Scripts\Activate.ps1
+
+# install dependencies
+pip install -r requirements.txt
+```
+
 ## Build And Run
 
 Compile the C++ simulator with:
