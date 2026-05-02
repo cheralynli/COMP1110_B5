@@ -1,11 +1,13 @@
-# Pair 7A: KBBQ or hotpot with more 4-seat tables
+# KBBQ/hotpot A: 4-seat-table-heavy layout (more medium tables)
 TABLE,4,1
 TABLE,4,2
 TABLE,4,3
 TABLE,4,4
-TABLE,6,5
-TABLE,6,6
+TABLE,4,5
+TABLE,4,6
+TABLE,6,7
+TABLE,6,8
+TABLE,6,9
 QUEUE,1,2
 QUEUE,3,4
 QUEUE,5,6
-QUEUE,7,8

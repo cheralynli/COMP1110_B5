@@ -1,4 +1,4 @@
-# Pair 6A: sushi belt with strong solo and pair focus
+# Sushi belt A: solo/pair-focused layout
 TABLE,1,1
 TABLE,1,2
 TABLE,1,3
@@ -7,6 +7,7 @@ TABLE,2,5
 TABLE,2,6
 TABLE,2,7
 TABLE,4,8
+TABLE,4,9
 QUEUE,1,1
 QUEUE,2,2
 QUEUE,3,4

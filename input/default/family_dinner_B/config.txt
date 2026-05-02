@@ -1,10 +1,12 @@
-# Pair 3B: large-table-heavy family layout
-TABLE,2,1
+# Family dinner B: large-table-heavy family layout with fewer 2-seat tables and more 6-seat capacity
+TABLE,4,1
 TABLE,4,2
 TABLE,4,3
 TABLE,6,4
 TABLE,6,5
 TABLE,6,6
+TABLE,6,7
+TABLE,6,8
 QUEUE,1,2
 QUEUE,3,4
 QUEUE,5,6

@@ -1,10 +1,12 @@
-# Pair 4B: mixed 2-seat and 4-seat cafe tables
+# Cafe lunch B: mixed/flexible layout with more 4-seat and 6-seat tables
 TABLE,2,1
 TABLE,2,2
-TABLE,2,3
-TABLE,2,4
+TABLE,4,3
+TABLE,4,4
 TABLE,4,5
 TABLE,4,6
+TABLE,6,7
+TABLE,6,8
 QUEUE,1,2
 QUEUE,3,4
 QUEUE,5,6

@@ -1,10 +1,12 @@
-# Pair 6B: sushi belt with fewer solo spots and more group flexibility
+# Sushi belt B: fewer solo spots and more group-flexible tables
 TABLE,1,1
 TABLE,2,2
 TABLE,2,3
+TABLE,2,4
 TABLE,4,5
 TABLE,4,6
 TABLE,4,7
+TABLE,4,8
 QUEUE,1,1
 QUEUE,2,2
 QUEUE,3,4

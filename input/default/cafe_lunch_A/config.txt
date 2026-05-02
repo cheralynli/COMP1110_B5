@@ -1,11 +1,12 @@
-# Pair 4A: mostly 2-seat cafe tables
+# Cafe lunch A: small-table-heavy layout (many 2-seat tables)
 TABLE,2,1
 TABLE,2,2
 TABLE,2,3
 TABLE,2,4
-TABLE,2,5
-TABLE,2,6
+TABLE,4,5
+TABLE,4,6
 TABLE,4,7
+TABLE,4,8
 QUEUE,1,2
 QUEUE,3,4
 QUEUE,5,6

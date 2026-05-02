@@ -1,4 +1,4 @@
-# Pair 3A: balanced family layout
+# Family dinner A: balanced family layout with 2-, 4-, and 6-seat tables
 TABLE,2,1
 TABLE,2,2
 TABLE,4,3
@@ -6,6 +6,7 @@ TABLE,4,4
 TABLE,4,5
 TABLE,6,6
 TABLE,6,7
+TABLE,6,8
 QUEUE,1,2
 QUEUE,3,4
 QUEUE,5,6
