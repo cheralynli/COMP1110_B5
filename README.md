@@ -190,10 +190,9 @@ Config files:
 
 ```text
 TABLE,capacity,id
-QUEUE,min_size,max_size
 ```
 
-The current size-based queue algorithm always uses fixed bands `1-2`, `3-4`, and `5+`. Existing `QUEUE` lines may remain in config files for readability/legacy compatibility.
+The size-based queue algorithm does not read queue definitions from config files. It always uses fixed bands `1-2`, `3-4`, and `5+`.
 
 Arrival files:
 
