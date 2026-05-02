@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -393,6 +394,66 @@ void pauseForEnter() {
     std::getline(std::cin, line);
 }
 
+std::string visualizationScriptName() {
+    if (std::filesystem::exists("visualization.py")) {
+        return "visualization.py";
+    }
+
+    return "visualize.py";
+}
+
+bool runPythonScript(const std::string& scriptName) {
+    if (!std::filesystem::exists(scriptName)) {
+        std::cout << "Could not find " << scriptName << ".\n";
+        return false;
+    }
+
+    const std::vector<std::string> commands = {
+        "python " + scriptName,
+        "python3 " + scriptName,
+        "py -3 " + scriptName,
+    };
+
+    for (const std::string& command : commands) {
+        const int exitCode = std::system(command.c_str());
+        if (exitCode == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void generateMetricsAndVisualizations() {
+    clearScreen();
+    std::cout << "\nGenerate Metrics And Visualizations\n\n";
+    std::cout << "Running metrics.py to rebuild the summary CSV files...\n\n";
+
+    if (!runPythonScript("metrics.py")) {
+        std::cout << "\nMetrics generation failed. Check that Python is installed and metrics.py runs correctly.\n";
+        pauseForEnter();
+        return;
+    }
+
+    const std::string visualizationScript = visualizationScriptName();
+    std::cout << "\nRunning " << visualizationScript << " to rebuild the chart images...\n\n";
+
+    if (!runPythonScript(visualizationScript)) {
+        std::cout << "\nMetrics were generated, but visualization failed.\n";
+        std::cout << "Check that matplotlib is installed and " << visualizationScript << " runs correctly.\n";
+        pauseForEnter();
+        return;
+    }
+
+    std::cout << "\nDone.\n";
+    std::cout << "Updated metric summaries:\n";
+    std::cout << "  output/metrics_summary.csv\n";
+    std::cout << "  output/fcfs_metrics_summary.csv\n";
+    std::cout << "  output/size_metrics_summary.csv\n";
+    std::cout << "Updated chart folders under output/.\n";
+    pauseForEnter();
+}
+
 char promptForStartAction() {
     const std::vector<std::string> title = splitLines(
 R"( _   _  __  _  _______ _  _ _   __  _   _   __ __   __
@@ -421,7 +482,7 @@ R"(    (\
         renderCenteredBlock(
             {title, cat},
             {
-                "[s] Start Case Study   [q] Quit",
+                "[s] Start Case Study   [g] Generate Metrics + Charts   [q] Quit",
                 "",
                 "Choose an option: ",
             }
@@ -434,7 +495,7 @@ R"(    (\
         }
 
         const char choice = static_cast<char>(std::tolower(static_cast<unsigned char>(line[0])));
-        if (choice == 's' || choice == 'q') {
+        if (choice == 's' || choice == 'g' || choice == 'q') {
             return choice;
         }
     }
@@ -1091,6 +1152,11 @@ int main() {
             clearScreen();
             std::cout << "Exiting.\n";
             return 0;
+        }
+
+        if (startAction == 'g') {
+            generateMetricsAndVisualizations();
+            continue;
         }
 
         const AlgorithmPromptResult algorithmChoice = promptForAlgorithmChoice();
